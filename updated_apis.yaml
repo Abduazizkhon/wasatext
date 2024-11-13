@@ -1,0 +1,560 @@
+openapi: 3.0.3
+info:
+  title: WasaText - OpenAPI 3.0
+  description: |
+    This API allows sharing and receiving messages among users in WasaText.
+  version: 0.0.1
+tags:
+  - name: Users
+    description: Operations related to user profiles
+  - name: Conversations
+    description: Operations to manage user conversations
+  - name: Messages
+    description: Operations to send, forward, comment on, and delete messages
+  - name: Groups
+    description: Operations for managing groups, including adding members and changing group details
+
+components:
+  securitySchemes:
+    bearerAuth: # arbitrary name for the security scheme
+      type: http
+      scheme: bearer
+      bearerFormat: JWT # optional, arbitrary value for documentation purposes
+
+
+  schemas:
+    User:
+      title: User
+      type: object
+      description: Details of a registered user
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Unique identifier of the User
+        username:
+          type: string
+          description: Username of the User
+          minLength: 3
+          maxLength: 30
+        photo:
+          type: string
+          format: uri
+          description: URL to the User's profile photo
+      required:
+        - id
+        - username
+
+    Conversation:
+      title: Conversation
+      type: object
+      description: Details of a conversation between users
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Unique identifier of the conversation
+        lastconvo:
+          type: string
+          format: date-time
+          description: Timestamp of the last message in the conversation
+        participant:
+          allOf:
+            - $ref: '#/components/schemas/User'
+            - description: The participant (receiver) in the conversation
+      required:
+        - id
+        - lastconvo
+        - participant
+
+    Group:
+      title: Group
+      type: object
+      description: Details of a group with multiple participants
+      properties:
+        id: 
+          type: integer
+          format: int64
+          readOnly: true
+          description: Unique identifier of the Group
+        photo:
+          type: string
+          format: uri
+          description: URL of the group's profile photo
+        members:
+          type: array
+          items: 
+            $ref: '#/components/schemas/User'
+          description: List of users who are members of the group
+          minItems: 1
+          maxItems: 1000
+      required: 
+        - id
+        - members
+
+    Message:
+      title: Message
+      type: object
+      description: Details of a message sent between users or in a group
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Unique identifier of the message
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp when the message was sent
+        content:
+          oneOf:
+            - type: string
+              description: Text content of the message
+              minLength: 1
+              maxLength: 1000
+            - type: string
+              format: uri
+              description: URL pointing to an attached image or media file
+        senderUsername:
+          allOf:
+            - $ref: '#/components/schemas/User'
+            - description: Username of the sender
+        status:
+          type: string
+          enum:
+            - "sent"
+            - "delivered"
+            - "read"
+          description: Status of the message, represented by "sent," "delivered," or "read"
+      required:
+        - id
+        - timestamp
+        - content
+        - senderUsername
+      # 2) Apply the security globally to all operations
+security:
+  - bearerAuth: [] # use the same name as above
+paths:
+  /session:
+    post:
+      tags: ["login"]
+      summary: Logs in the user
+      description: |-
+        If the user does not exist, it will be created,
+        and an identifier is returned.
+        If the user exists, the user identifier is returned.
+      operationId: doLogin
+      requestBody:
+        description: User details
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: Maria
+                  pattern: 'ˆ.*?$'
+                  minLength: 3
+                  maxLength: 16
+        required: true
+      responses:
+        '201':
+          description: User log-in action successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  identifier:
+                    # change here if you decide to use an integer
+                    # or any other type of identifier
+                    type: string
+                    example: "abcdef012345"
+  /users/me/username:
+    put:
+      tags:
+        - Users
+      summary: Set my username
+      description: Updates the username of the authenticated user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  description: New username for the user
+                  minLength: 3
+                  maxLength: 50
+                  example: "new_username"
+      responses:
+        '200':
+          description: Username updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Username updated successfully."
+        '400':
+          description: Invalid input
+        '409':
+          description: Username already in use
+
+  /conversations:
+    get:
+      tags:
+        - Conversations
+      summary: Get my conversations
+      description: Retrieves a list of all conversations involving the authenticated user.
+      responses:
+        '200':
+          description: List of conversations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Conversation'
+                minItems: 1   
+                maxItems: 100 
+
+  /conversations/{id}:
+    get:
+      tags:
+        - Conversations
+      summary: Get a specific conversation
+      description: Retrieves details of a specific conversation by ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Conversation details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '404':
+          description: Conversation not found
+
+  /messages:
+    post:
+      tags:
+        - Messages
+      summary: Send a message
+      description: Sends a new message in a conversation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Message'
+            
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Message sent successfully."
+                  
+        '400':
+          description: Invalid input
+
+  /messages/{id}/forward:
+    post:
+      tags:
+        - Messages
+      summary: Forward a message
+      description: Forwards an existing message to another conversation.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                conversationId:
+                  type: integer
+                  description: ID of the target conversation
+      responses:
+        '200':
+          description: Message forwarded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Message forwarded successfully."
+        '404':
+          description: Message not found
+
+  /messages/{id}/comments:
+    post:
+      tags:
+        - Messages
+      summary: Comment on a message
+      description: Adds a comment to a message.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+                  description: The comment text
+      responses:
+        '201':
+          description: Comment added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Comment added successfully."
+        '404':
+          description: Message not found
+
+  /messages/{id}/comments/{commentId}:
+    delete:
+      tags:
+        - Messages
+      summary: Uncomment a message
+      description: Deletes a comment from a message.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Comment deleted successfully
+        '404':
+          description: Message or comment not found
+
+  /messages/{id}:
+    delete:
+      tags:
+        - Messages
+      summary: Delete a message
+      description: Deletes a specific message by ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Message deleted successfully
+        '404':
+          description: Message not found
+
+  /groups/{id}/members:
+    post:
+      tags:
+        - Groups
+      summary: Add a user to a group
+      description: Adds a new user to a group by group ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: integer
+                  description: ID of the user to be added
+                  items:
+                    type: integer
+                  minItems: 1
+                  maxItems: 10
+      responses:
+        '200':
+          description: User added to the group successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User added to the group successfully."
+        '404':
+          description: Group or user not found
+
+  /groups/{id}/leave:
+    post:
+      tags:
+        - Groups
+      summary: Leave a group
+      description: Allows the authenticated user to leave a group.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Successfully left the group
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Successfully left the group."
+        '404':
+          description: Group not found
+
+  /groups/{id}/name:
+    put:
+      tags:
+        - Groups
+      summary: Set group name
+      description: Updates the name of a group by ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: New name for the group
+      responses:
+        '200':
+          description: Group name updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Group name updated successfully."
+        '404':
+          description: Group not found
+
+  /users/me/photo:
+    put:
+      tags:
+        - Users
+      summary: Set my photo
+      description: Updates the photo of the authenticated user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                photo:
+                  type: string
+                  format: uri
+                  description: URL of the new photo
+      responses:
+        '200':
+          description: Photo updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Photo updated successfully."
+        '400':
+          description: Invalid input
+
+  /groups/{id}/photo:
+    put:
+      tags:
+        - Groups
+      summary: Set group photo
+      description: Updates the photo of a group by ID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                photo:
+                  type: string
+                  format: uri
+                  description: URL of the new group photo
+      responses:
+        '200':
+          description: Group photo updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Group photo updated successfully."
+        '404':
+          description: Group not found
