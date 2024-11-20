@@ -46,6 +46,7 @@ components:
       required:
         - id
         - username
+  
 
     Conversation:
       title: Conversation
@@ -144,6 +145,9 @@ components:
         - content
         - senderUsername
 
+      
+    
+
 security:
   - bearerAuth: []
 
@@ -236,6 +240,14 @@ paths:
       summary: Get my conversations
       description: Retrieves a list of all conversations involving the authenticated user.
       operationId: getMyConversations
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ID of the conversation
+      
       responses:
         '200':
           description: List of conversations retrieved successfully
@@ -256,12 +268,19 @@ paths:
       description: Retrieves details of a specific conversation by ID.
       operationId: getConversation
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: ID of the conversation
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ID of the user
+      - name: c_id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: ID of the conversation
+        
       responses:
         '200':
           description: Conversation details retrieved successfully
@@ -273,19 +292,27 @@ paths:
           description: Conversation not found
 
   /users/{id}/conversations/{c_id}/messages:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the user
+    - name: c_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the conversation
     get:
       tags:
         - Messages
       summary: Get messages in a conversation
       description: Retrieves all messages within a specific conversation.
       operationId: getMessagesInConversation
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: ID of the conversation
+
+        
       responses:
         '200':
           description: List of messages retrieved successfully
@@ -342,6 +369,26 @@ paths:
                 $ref: '#/components/schemas/Message'
 
   /users/{id}/conversations/{c_id}/messages/{m_id}/forward:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the user
+    - name: c_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the conversation
+    - name: m_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the message
+      
     post:
       tags:
         - Messages
@@ -384,6 +431,25 @@ paths:
           description: Message not found
 
   /users/{id}/conversations/{c_id}/messages/{m_id}/comments:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the user
+    - name: c_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the conversation
+    - name: m_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the message
     post:
       tags:
         - Messages
@@ -427,6 +493,31 @@ paths:
           description: Message not found
 
   /users/{id}/conversations/{c_id}/messages/{m_id}/comments/{commentId}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the user
+    - name: c_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the conversation
+    - name: m_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the message
+    - name: commentId
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the comment
     delete:
       tags:
         - Messages
@@ -453,6 +544,25 @@ paths:
           description: Message or comment not found
 
   /users/{id}/conversations/{c_id}/messages/{m_id}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the user
+    - name: c_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the conversation
+    - name: m_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the message
     delete:
       tags:
         - Messages
@@ -473,6 +583,25 @@ paths:
           description: Message not found
 
   /users/{id}/conversations/{c_id}/groups/{g_id}/members:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the user
+    - name: c_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the conversation
+    - name: g_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the group
     post:
       tags:
         - Groups
@@ -515,6 +644,25 @@ paths:
           description: Group or user not found
 
   /users/{id}/conversations/{c_id}/groups/{g_id}/leave:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the user
+    - name: c_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the conversation
+    - name: g_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the group
     post:
       tags:
         - Groups
@@ -547,6 +695,25 @@ paths:
           description: Group not found
 
   /users/{id}/conversations/{c_id}/groups/{g_id}/name:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the user
+    - name: c_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the conversation
+    - name: g_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the group
     put:
       tags:
         - Groups
@@ -631,6 +798,25 @@ paths:
           description: Invalid input
 
   /users/{id}/conversations/{c_id}/groups/{g_id}/photo:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the user
+    - name: c_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the conversation
+    - name: g_id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: ID of the group
     put:
       tags:
         - Groups
