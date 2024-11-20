@@ -16,11 +16,10 @@ tags:
 
 components:
   securitySchemes:
-    bearerAuth: # arbitrary name for the security scheme
+    bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT # optional, arbitrary value for documentation purposes
-
+      bearerFormat: JWT
 
   schemas:
     User:
@@ -38,9 +37,11 @@ components:
           description: Username of the User
           minLength: 3
           maxLength: 30
+          pattern: "^[a-zA-Z0-9_]+$"
         photo:
           type: string
           format: uri
+          pattern: "^[a-zA-Z0-9_]+$"
           description: URL to the User's profile photo
       required:
         - id
@@ -59,6 +60,7 @@ components:
         lastconvo:
           type: string
           format: date-time
+          pattern: "^[a-zA-Z0-9_]+$"
           description: Timestamp of the last message in the conversation
         participant:
           allOf:
@@ -82,6 +84,7 @@ components:
         photo:
           type: string
           format: uri
+          pattern: "^[a-zA-Z0-9_]+$"
           description: URL of the group's profile photo
         members:
           type: array
@@ -107,6 +110,7 @@ components:
         timestamp:
           type: string
           format: date-time
+          pattern: "^[a-zA-Z0-9_]+$"
           description: Timestamp when the message was sent
         content:
           oneOf:
@@ -114,7 +118,10 @@ components:
               description: Text content of the message
               minLength: 1
               maxLength: 1000
+              pattern: "^.*$"
             - type: string
+              minLength: 3
+              maxLength: 50
               format: uri
               description: URL pointing to an attached image or media file
         senderUsername:
@@ -123,6 +130,9 @@ components:
             - description: Username of the sender
         status:
           type: string
+          pattern: "^[a-zA-Z0-9_]+$"
+          minLength: 3
+          maxLength: 50
           enum:
             - "sent"
             - "delivered"
@@ -133,9 +143,10 @@ components:
         - timestamp
         - content
         - senderUsername
-      # 2) Apply the security globally to all operations
+
 security:
-  - bearerAuth: [] # use the same name as above
+  - bearerAuth: []
+
 paths:
   /session:
     post:
@@ -155,8 +166,9 @@ paths:
               properties:
                 name:
                   type: string
+                  description: Name of the user
                   example: Maria
-                  pattern: 'ˆ.*?$'
+                  pattern: 'ˆ[a-zA-Z0-9]+$'
                   minLength: 3
                   maxLength: 16
         required: true
@@ -169,16 +181,20 @@ paths:
                 type: object
                 properties:
                   identifier:
-                    # change here if you decide to use an integer
-                    # or any other type of identifier
                     type: string
+                    pattern: "^[a-zA-Z0-9_]+$"
+                    minLength: 3
+                    maxLength: 50
+                    description: Identifier of the logged-in user
                     example: "abcdef012345"
+
   /users/me/username:
     put:
       tags:
         - Users
       summary: Set my username
       description: Updates the username of the authenticated user.
+      operationId: setMyUserName
       requestBody:
         required: true
         content:
@@ -191,6 +207,7 @@ paths:
                   description: New username for the user
                   minLength: 3
                   maxLength: 50
+                  pattern: "^[a-zA-Z0-9_]+$"
                   example: "new_username"
       responses:
         '200':
@@ -202,18 +219,23 @@ paths:
                 properties:
                   message:
                     type: string
+                    pattern: "^[a-zA-Z0-9_]+$"
+                    minLength: 3
+                    maxLength: 50
+                    description: Success message
                     example: "Username updated successfully."
         '400':
           description: Invalid input
         '409':
           description: Username already in use
 
-  /conversations:
+  /users/{id}/conversations:
     get:
       tags:
         - Conversations
       summary: Get my conversations
       description: Retrieves a list of all conversations involving the authenticated user.
+      operationId: getMyConversations
       responses:
         '200':
           description: List of conversations retrieved successfully
@@ -226,18 +248,20 @@ paths:
                 minItems: 1   
                 maxItems: 100 
 
-  /conversations/{id}:
+  /users/{id}/conversations/{c_id}:
     get:
       tags:
         - Conversations
       summary: Get a specific conversation
       description: Retrieves details of a specific conversation by ID.
+      operationId: getConversation
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          description: ID of the conversation
       responses:
         '200':
           description: Conversation details retrieved successfully
@@ -248,46 +272,89 @@ paths:
         '404':
           description: Conversation not found
 
-  /messages:
-    post:
+  /users/{id}/conversations/{c_id}/messages:
+    get:
       tags:
         - Messages
-      summary: Send a message
-      description: Sends a new message in a conversation.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Message'
-            
-      responses:
-        '201':
-          description: Message sent successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "Message sent successfully."
-                  
-        '400':
-          description: Invalid input
-
-  /messages/{id}/forward:
-    post:
-      tags:
-        - Messages
-      summary: Forward a message
-      description: Forwards an existing message to another conversation.
+      summary: Get messages in a conversation
+      description: Retrieves all messages within a specific conversation.
+      operationId: getMessagesInConversation
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          description: ID of the conversation
+      responses:
+        '200':
+          description: List of messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+                minItems: 1   
+                maxItems: 100
+
+    post:
+      tags:
+        - Messages
+      summary: Send a message in a conversation
+      description: Sends a new message within a specific conversation.
+      operationId: sendMessage
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID of the conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  pattern: "^[a-zA-Z0-9_]+$"
+                  minLength: 3
+                  maxLength: 50
+                  description: Content of the message
+                status:
+                  type: string
+                  pattern: "^[a-zA-Z0-9_]+$"
+                  minLength: 3
+                  maxLength: 50
+                  enum:
+                    - "sent"
+                    - "delivered"
+                    - "read"
+      responses:
+        '201':
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+
+  /users/{id}/conversations/{c_id}/messages/{m_id}/forward:
+    post:
+      tags:
+        - Messages
+      summary: Forward a message
+      description: Forwards an existing message to another conversation.
+      operationId: forwardMessage
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID of the message to forward
       requestBody:
         required: true
         content:
@@ -308,22 +375,28 @@ paths:
                 properties:
                   message:
                     type: string
+                    pattern: "^[a-zA-Z0-9_]+$"
+                    minLength: 3
+                    maxLength: 50
+                    description: Success message
                     example: "Message forwarded successfully."
         '404':
           description: Message not found
 
-  /messages/{id}/comments:
+  /users/{id}/conversations/{c_id}/messages/{m_id}/comments:
     post:
       tags:
         - Messages
       summary: Comment on a message
       description: Adds a comment to a message.
+      operationId: commentMessage
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          description: ID of the message to comment on
       requestBody:
         required: true
         content:
@@ -333,7 +406,10 @@ paths:
               properties:
                 comment:
                   type: string
+                  pattern: "^[a-zA-Z0-9_]+$"
                   description: The comment text
+                  minLength: 1
+                  maxLength: 1000
       responses:
         '201':
           description: Comment added successfully
@@ -344,63 +420,72 @@ paths:
                 properties:
                   message:
                     type: string
+                    pattern: "^[a-zA-Z0-9_]+$"
+                    description: Success message
                     example: "Comment added successfully."
         '404':
           description: Message not found
 
-  /messages/{id}/comments/{commentId}:
+  /users/{id}/conversations/{c_id}/messages/{m_id}/comments/{commentId}:
     delete:
       tags:
         - Messages
-      summary: Uncomment a message
-      description: Deletes a comment from a message.
+      summary: Delete a comment from a message
+      description: Deletes a specific comment from a message by message ID and comment ID.
+      operationId: uncommentMessage
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          description: Unique identifier of the message
         - name: commentId
           in: path
           required: true
           schema:
             type: integer
+          description: Unique identifier of the comment to be deleted
       responses:
         '204':
           description: Comment deleted successfully
         '404':
           description: Message or comment not found
 
-  /messages/{id}:
+  /users/{id}/conversations/{c_id}/messages/{m_id}:
     delete:
       tags:
         - Messages
-      summary: Delete a message
-      description: Deletes a specific message by ID.
+      summary: Delete a specific message
+      description: Deletes a message by its unique identifier.
+      operationId: deleteMessage
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          description: Unique identifier of the message to delete
       responses:
         '204':
           description: Message deleted successfully
         '404':
           description: Message not found
 
-  /groups/{id}/members:
+  /users/{id}/conversations/{c_id}/groups/{g_id}/members:
     post:
       tags:
         - Groups
       summary: Add a user to a group
-      description: Adds a new user to a group by group ID.
+      description: Adds a user to a specified group by the group's unique identifier.
+      operationId: addToGroup
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          description: Unique identifier of the group
       requestBody:
         required: true
         content:
@@ -410,11 +495,7 @@ paths:
               properties:
                 userId:
                   type: integer
-                  description: ID of the user to be added
-                  items:
-                    type: integer
-                  minItems: 1
-                  maxItems: 10
+                  description: Unique identifier of the user to add
       responses:
         '200':
           description: User added to the group successfully
@@ -425,22 +506,28 @@ paths:
                 properties:
                   message:
                     type: string
+                    pattern: "^[a-zA-Z0-9_]+$"
+                    minLength: 3
+                    maxLength: 50
+                    description: Success message
                     example: "User added to the group successfully."
         '404':
           description: Group or user not found
 
-  /groups/{id}/leave:
+  /users/{id}/conversations/{c_id}/groups/{g_id}/leave:
     post:
       tags:
         - Groups
       summary: Leave a group
-      description: Allows the authenticated user to leave a group.
+      description: Allows the authenticated user to leave a specified group.
+      operationId: leaveGroup
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          description: Unique identifier of the group
       responses:
         '200':
           description: Successfully left the group
@@ -451,22 +538,28 @@ paths:
                 properties:
                   message:
                     type: string
+                    pattern: "^[a-zA-Z0-9_]+$"
+                    minLength: 3
+                    maxLength: 50
+                    description: Success message
                     example: "Successfully left the group."
         '404':
           description: Group not found
 
-  /groups/{id}/name:
+  /users/{id}/conversations/{c_id}/groups/{g_id}/name:
     put:
       tags:
         - Groups
-      summary: Set group name
-      description: Updates the name of a group by ID.
+      summary: Update group name
+      description: Updates the name of a group by its unique identifier.
+      operationId: setGroupName
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          description: Unique identifier of the group
       requestBody:
         required: true
         content:
@@ -477,6 +570,9 @@ paths:
                 name:
                   type: string
                   description: New name for the group
+                  minLength: 1
+                  maxLength: 100
+                  pattern: "^[a-zA-Z0-9_ ]+$"
       responses:
         '200':
           description: Group name updated successfully
@@ -487,6 +583,10 @@ paths:
                 properties:
                   message:
                     type: string
+                    pattern: "^[a-zA-Z0-9_]+$"
+                    minLength: 1
+                    maxLength: 100
+                    description: Success message
                     example: "Group name updated successfully."
         '404':
           description: Group not found
@@ -495,8 +595,9 @@ paths:
     put:
       tags:
         - Users
-      summary: Set my photo
-      description: Updates the photo of the authenticated user.
+      summary: Update user profile photo
+      description: Updates the profile photo of the authenticated user.
+      operationId: setMyPhoto
       requestBody:
         required: true
         content:
@@ -506,8 +607,11 @@ paths:
               properties:
                 photo:
                   type: string
+                  pattern: "^[a-zA-Z0-9_]+$"
+                  minLength: 1
+                  maxLength: 100
                   format: uri
-                  description: URL of the new photo
+                  description: URL of the new photo for the user
       responses:
         '200':
           description: Photo updated successfully
@@ -518,22 +622,28 @@ paths:
                 properties:
                   message:
                     type: string
+                    pattern: "^[a-zA-Z0-9_]+$"
+                    minLength: 1
+                    maxLength: 100
+                    description: Success message
                     example: "Photo updated successfully."
         '400':
           description: Invalid input
 
-  /groups/{id}/photo:
+  /users/{id}/conversations/{c_id}/groups/{g_id}/photo:
     put:
       tags:
         - Groups
-      summary: Set group photo
-      description: Updates the photo of a group by ID.
+      summary: Update group photo
+      description: Updates the profile photo of a specified group by its unique identifier.
+      operationId: setGroupPhoto
       parameters:
         - name: id
           in: path
           required: true
           schema:
             type: integer
+          description: Unique identifier of the group
       requestBody:
         required: true
         content:
@@ -543,6 +653,9 @@ paths:
               properties:
                 photo:
                   type: string
+                  pattern: "^[a-zA-Z0-9_]+$"
+                  minLength: 1
+                  maxLength: 100
                   format: uri
                   description: URL of the new group photo
       responses:
@@ -555,6 +668,10 @@ paths:
                 properties:
                   message:
                     type: string
+                    pattern: "^[a-zA-Z0-9_]+$"
+                    minLength: 1
+                    maxLength: 100
+                    description: Success message
                     example: "Group photo updated successfully."
         '404':
           description: Group not found
