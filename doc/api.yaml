@@ -882,4 +882,3 @@ paths:
                 pattern: "^[a-zA-Z0-9_ ]+$"
                 minLength: 3
                 maxLength: 50
-
