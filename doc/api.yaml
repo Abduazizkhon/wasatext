@@ -43,6 +43,8 @@ components:
           format: uri
           pattern: "^[a-zA-Z0-9_]+$"
           description: URL to the User's profile photo
+          minLength: 1
+          maxLength: 20
       required:
         - id
         - username
@@ -63,6 +65,8 @@ components:
           format: date-time
           pattern: "^[a-zA-Z0-9_]+$"
           description: Timestamp of the last message in the conversation
+          minLength: 1
+          maxLength: 20
         participant:
           allOf:
             - $ref: '#/components/schemas/User'
@@ -74,31 +78,31 @@ components:
         - lastconvo
         - participant
 
-    # Group:
-    #   title: Group
-    #   type: object
-    #   description: Details of a group with multiple participants
-    #   properties:
-    #     id: 
-    #       type: integer
-    #       format: int64
-    #       readOnly: true
-    #       description: Unique identifier of the Group
-    #     photo:
-    #       type: string
-    #       format: uri
-    #       pattern: "^[a-zA-Z0-9_]+$"
-    #       description: URL of the group's profile photo
-    #     members:
-    #       type: array
-    #       items: 
-    #         $ref: '#/components/schemas/User'
-    #       description: List of users who are members of the group
-    #       minItems: 1
-    #       maxItems: 1000
-    #   required: 
-    #     - id
-    #     - members
+    Group:
+      title: Group
+      type: object
+      description: Details of a group with multiple participants
+      properties:
+        id: 
+          type: integer
+          format: int64
+          readOnly: true
+          description: Unique identifier of the Group
+        photo:
+          type: string
+          format: uri
+          pattern: "^[a-zA-Z0-9_]+$"
+          description: URL of the group's profile photo
+        members:
+          type: array
+          items: 
+            $ref: '#/components/schemas/User'
+          description: List of users who are members of the group
+          minItems: 1
+          maxItems: 1000
+      required: 
+        - id
+        - members
 
     Message:
       title: Message
@@ -115,6 +119,8 @@ components:
           format: date-time
           pattern: "^[a-zA-Z0-9_]+$"
           description: Timestamp when the message was sent
+          minLength: 1
+          maxLength: 20
         content:
           description: Content of the message, which can either be text or a media file URL
           oneOf:
@@ -126,6 +132,7 @@ components:
             - type: string
               minLength: 3
               maxLength: 50
+              pattern: "^.*$"
               format: uri
               description: URL pointing to an attached image or media file
         senderUsername:
@@ -172,6 +179,7 @@ paths:
         content:
           application/json:
             schema:
+              description: some description
               type: object
               properties:
                 name:
@@ -188,6 +196,7 @@ paths:
           content:
             application/json:
               schema:
+                description: some description
                 type: object
                 properties:
                   identifier:
@@ -233,7 +242,7 @@ paths:
                   message:
                     type: string
                     description: Success message confirming the username update
-                    pattern: "^[a-zA-Z0-9_]+$"
+                    pattern: ^.*$
                     minLength: 3
                     maxLength: 50
                     example: "Username updated successfully"
@@ -322,7 +331,7 @@ paths:
               schema:
                 type: string
                 description: Error message indicating that the requested conversation was not found.
-                pattern: "^[a-zA-Z0-9_]+$"
+                pattern: ^.*$
                 minLength: 3
                 maxLength: 50
                 example: "Conversation not found"
@@ -451,7 +460,7 @@ paths:
                   message:
                     type: string
                     description: A confirmation message indicating the message was forwarded successfully.
-                    pattern: "^[a-zA-Z0-9_]+$"
+                    pattern: ^.*$
                     minLength: 3
                     maxLength: 50
                     example: "Message forwarded successfully"
@@ -520,8 +529,10 @@ paths:
                 properties:
                   message:
                     type: string
+                    minLength: 0
+                    maxLength: 50
                     description: Confirmation message.
-                    pattern: "^[a-zA-Z0-9_]+$"
+                    pattern: ^.*$
                     example: "Comment added successfully"
         '404':
           description: Message not found.
@@ -868,7 +879,7 @@ paths:
                   message:
                     type: string
                     description: A confirmation message indicating the group photo was updated successfully.
-                    pattern: "^[a-zA-Z0-9_ ]+$"
+                    pattern: ^.*$
                     minLength: 3
                     maxLength: 100
                     example: "Group photo updated successfully."
@@ -879,6 +890,6 @@ paths:
               schema:
                 type: string
                 description: Error message indicating the specified group could not be found.
-                pattern: "^[a-zA-Z0-9_ ]+$"
+                pattern: ^.*$
                 minLength: 3
                 maxLength: 50
