@@ -78,31 +78,31 @@ components:
         - lastconvo
         - participant
 
-    Group:
-      title: Group
-      type: object
-      description: Details of a group with multiple participants
-      properties:
-        id: 
-          type: integer
-          format: int64
-          readOnly: true
-          description: Unique identifier of the Group
-        photo:
-          type: string
-          format: uri
-          pattern: "^[a-zA-Z0-9_]+$"
-          description: URL of the group's profile photo
-        members:
-          type: array
-          items: 
-            $ref: '#/components/schemas/User'
-          description: List of users who are members of the group
-          minItems: 1
-          maxItems: 1000
-      required: 
-        - id
-        - members
+    # Group:
+    #   title: Group
+    #   type: object
+    #   description: Details of a group with multiple participants
+    #   properties:
+    #     id: 
+    #       type: integer
+    #       format: int64
+    #       readOnly: true
+    #       description: Unique identifier of the Group
+    #     photo:
+    #       type: string
+    #       format: uri
+    #       pattern: "^[a-zA-Z0-9_]+$"
+    #       description: URL of the group's profile photo
+    #     members:
+    #       type: array
+    #       items: 
+    #         $ref: '#/components/schemas/User'
+    #       description: List of users who are members of the group
+    #       minItems: 1
+    #       maxItems: 1000
+    #   required: 
+    #     - id
+    #     - members
 
     Message:
       title: Message
