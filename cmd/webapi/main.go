@@ -21,6 +21,7 @@ Return values (exit codes):
 Note that this program will update the schema of the database to the latest version available (embedded in the
 executable during the build).
 */
+
 package main
 
 import (
@@ -28,9 +29,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"git.sapienzaapps.it/fantasticcoffee/fantastic-coffee-decaffeinated/service/api"
-	"git.sapienzaapps.it/fantasticcoffee/fantastic-coffee-decaffeinated/service/database"
-	"git.sapienzaapps.it/fantasticcoffee/fantastic-coffee-decaffeinated/service/globaltime"
+	// "git.sapienzaapps.it/fantasticcoffee/fantastic-coffee-decaffeinated/service/api"
+	// "git.sapienzaapps.it/fantasticcoffee/fantastic-coffee-decaffeinated/service/database"
+	// "git.sapienzaapps.it/fantasticcoffee/fantastic-coffee-decaffeinated/service/globaltime"
+	"github.com/Abduazizkhon/wasatext/service/api"
+	"github.com/Abduazizkhon/wasatext/service/database"
+	"github.com/Abduazizkhon/wasatext/service/globaltime"
 	"github.com/ardanlabs/conf"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/sirupsen/logrus"
