@@ -37,6 +37,7 @@ import (
 )
 
 // AppDatabase is the high level interface for the DB
+// all the function that I creat in db nust be declated here
 type AppDatabase interface {
 	GetName() (string, error)
 	SetName(name string) error

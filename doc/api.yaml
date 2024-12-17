@@ -266,7 +266,74 @@ paths:
                 pattern: "^[a-zA-Z0-9_]+$"
                 minLength: 3
                 maxLength: 50
+# /
+# /
+# /
+# /
+# /
+# /
+# /
+# /
+  #  новый ендпоинт
+  /users/me/photo:
+      put:
+        tags:
+          - Users
+        summary: Set my photo
+        description: Updates the photo of the authenticated user.
+        operationId: setMyPhoto
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                type: object
+                # ПОМЕНЯТЬ
+                description: Payload containing the URL of the new user photo.
+                properties:
+                  photo:
+                    type: string
+                    description: The URL of the new photo to set as the user's profile photo.
+                    pattern: "^(https?://).+$"
+                    minLength: 1
+                    maxLength: 100
+                    format: uri
+                    example: "https://example.com/photos/user-photo.png"
+        responses:
+          '200':
+            description: User photo updated successfully.
+            content:
+              application/json:
+                schema:
+                  type: object
+                  description: Success response containing a confirmation message.
+                  properties:
+                    message:
+                      type: string
+                      description: A confirmation message indicating the user photo was updated successfully.
+                      pattern: ^.*$
+                      minLength: 3
+                      maxLength: 100
+                      example: "User photo updated successfully."
+          '404':
+            description: User not found.
+            content:
+              application/json:
+                schema:
+                  type: string
+                  description: Error message indicating the specified user could not be found.
+                  pattern: ^.*$
+                  minLength: 3
+                  maxLength: 50
+# ы
+# ы
 
+# ы
+# ы
+# ы
+# ы
+# ы
+# ы
 
   /users/{id}/conversations:
     get:
