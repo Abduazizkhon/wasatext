@@ -1,4 +1,4 @@
-package api
+package database
 
 import (
 	"database/sql"
@@ -10,6 +10,7 @@ type User struct {
 	Username string 		`json:"username"`
 	Photo    sql.NullString `json:"photo"`
 	Token	 string			`json:"token"`
+
 }
 
 type UserToken struct {
@@ -22,7 +23,8 @@ type Conversation struct {
 	ID          int       `json:"id"`
 	LastConvo   time.Time `json:"last_convo"`
 	IsGroup     bool      `json:"is_group"`
-	Photo       string    `json:"photo"`
+	Photo       sql.NullString    `json:"photo"`
+	Name		string		`json:"name"`
 }
 
 type Convmember struct {

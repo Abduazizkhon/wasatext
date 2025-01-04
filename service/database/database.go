@@ -39,9 +39,15 @@ import (
 // AppDatabase is the high level interface for the DB
 // all the function that I creat in db nust be declated here
 type AppDatabase interface {
-	GetName() (string, error)
-	SetName(name string) error
-
+	CreateUser(username string) (User, error)
+	GetUser(username string) (User, error)
+	SetToken(user_id int, token string) (err error)
+	DeleteToken(token string) (err error)
+	GetMyConversations_db(token string) (conversations []Conversation, err error)	
+	AddUsersToConversation(user_id int, conversation_id int) (err error)
+	CreateConversation_db(isGroup bool, name string, photo string) (conversation Conversation, err error)	
+	GetUserId(token string) (user UserToken, err error)
+	UpdateUserName(id int, newname string) (err error)
 	Ping() error
 }
 
@@ -58,10 +64,9 @@ func New(db *sql.DB) (AppDatabase, error) {
 
 	// Check if table exists. If not, the database is empty, and we need to create the structure
 	var tableName string
-	err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='example_table';`).Scan(&tableName)
+	err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='users';`).Scan(&tableName)
 	if errors.Is(err, sql.ErrNoRows) {
-		sqlStmt := `CREATE TABLE example_table (id INTEGER NOT NULL PRIMARY KEY, name TEXT);`
-		_, err = db.Exec(sqlStmt)
+		err = createDatabase(db)
 		if err != nil {
 			return nil, fmt.Errorf("error creating database structure: %w", err)
 		}
@@ -74,4 +79,62 @@ func New(db *sql.DB) (AppDatabase, error) {
 
 func (db *appdbimpl) Ping() error {
 	return db.c.Ping()
+}
+
+func createDatabase(db *sql.DB) error {
+	tables := [5] string {
+		`CREATE TABLE IF NOT EXISTS users(
+			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+			name VARCHAR(25) NOT NULL,
+			photo VARCHAR(255)
+		);`,
+
+		`CREATE TABLE IF NOT EXISTS conversations(
+			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+			lastconvo TIMESTAMP NOT NULL,
+			is_group BOOLEAN DEFAULT FALSE,
+			photo VARCHAR(255),
+			name VARCHAR(255)
+
+
+		);`,
+		
+		`CREATE TABLE IF NOT EXISTS convmembers (
+			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+			conversation_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			FOREIGN KEY (conversation_id) REFERENCES conversations (id),
+			FOREIGN KEY (user_id) REFERENCES users (id)
+		);`,
+
+		`CREATE TABLE IF NOT EXISTS messages(
+			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+			datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			content  TEXT NOT NULL,
+			sender	 INTEGER NOT NULL,
+			conversation_id	 INTEGER NOT NULL,
+			status VARCHAR(10) DEFAULT'sent',
+			FOREIGN KEY(sender) REFERENCES users(id),
+			FOREIGN KEY(conversation_id) REFERENCES conversation(id)
+
+
+
+		);`,
+		`CREATE TABLE IF NOT EXISTS usertokens(
+			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+			user_id INTEGER NOT NULL,
+			token VARCHAR(64),
+			FOREIGN KEY(user_id) REFERENCES users(id)
+		);`,
+	}
+	for t := 0; t < len(tables); t++ {
+		sqlStmt := tables[t]
+		_, err := db.Exec(sqlStmt)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
