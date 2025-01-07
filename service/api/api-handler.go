@@ -8,12 +8,12 @@ import (
 func (rt *_router) Handler() http.Handler {
 	// Register routes
 	rt.router.GET("/liveness/", rt.liveness)
-	rt.router.POST("/login/", rt.login)
+	rt.router.POST("/session", rt.doLogin)
 	rt.router.POST("/logout", rt.logout)
-	rt.router.GET("/users/myconversations/", rt.GetMyConversations)
-	rt.router.POST("/users/myconversations/newconvo", rt.SendFirstMessage)
-	rt.router.PUT("/users/me/username", rt.UpdateUserName)
-	rt.router.GET("/conversations/:id", rt.GetConversationById)
+	rt.router.GET("/users/:id/conversations", rt.getMyConversations)
+	rt.router.POST("/users/:id/conversations/:c_id/messages", rt.sendMessage)
+	rt.router.PUT("/users/me/username", rt.setMyUserName)
+	rt.router.GET("/users/:id/conversations/:c_id", rt.getConversation)
 // :conversation
 
 

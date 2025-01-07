@@ -10,7 +10,7 @@ import (
 )
 
 
-func (rt *_router) login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var user User
 	err := json.NewDecoder(r.Body).Decode(&user) // r is request
 	if err != nil {
@@ -96,7 +96,7 @@ func (rt *_router) logout(w http.ResponseWriter, r *http.Request, ps httprouter.
 }
 // -----------------Doesn't work
 
-func (rt *_router) UpdateUserName(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (rt *_router) setMyUserName(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
     // Parse input
     var input struct {
         ID       int    `json:"id"`

@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-func (rt *_router) GetMyConversations(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (rt *_router) getMyConversations(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var token UserToken
 	err := json.NewDecoder(r.Body).Decode(&token)
 	if err != nil {
@@ -25,7 +25,7 @@ func (rt *_router) GetMyConversations(w http.ResponseWriter, r *http.Request, ps
 	
 }
 
-func (rt *_router) SendFirstMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var user User
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
@@ -97,7 +97,7 @@ func (rt *_router) SendFirstMessage(w http.ResponseWriter, r *http.Request, ps h
 
 // update username of a user. Also change the name of that user in all convos
 
-func (rt *_router) GetConversationById(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (rt *_router) getConversation(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
     conversationId, err := strconv.Atoi(ps.ByName("id"))
     if err != nil || conversationId <= 0 {
         rt.baseLogger.WithError(err).Error("Invalid conversation ID")
