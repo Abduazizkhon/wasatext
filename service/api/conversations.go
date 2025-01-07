@@ -3,6 +3,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"github.com/julienschmidt/httprouter"
+	"strconv"
 )
 
 func (rt *_router) GetMyConversations(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -95,3 +96,33 @@ func (rt *_router) SendFirstMessage(w http.ResponseWriter, r *http.Request, ps h
 }
 
 // update username of a user. Also change the name of that user in all convos
+
+func (rt *_router) GetConversationById(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+    conversationId, err := strconv.Atoi(ps.ByName("id"))
+    if err != nil || conversationId <= 0 {
+        rt.baseLogger.WithError(err).Error("Invalid conversation ID")
+        w.WriteHeader(http.StatusBadRequest)
+        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid conversation ID"})
+        return
+    }
+
+    conversation, err := rt.db.GetConversationById(conversationId)
+    if err != nil {
+        rt.baseLogger.WithError(err).Error("Failed to fetch conversation")
+        w.WriteHeader(http.StatusInternalServerError)
+        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch conversation"})
+        return
+    }
+
+  
+    if conversation.ID == 0 {
+        w.WriteHeader(http.StatusNotFound)
+        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Conversation not found"})
+        return
+    }
+
+    w.WriteHeader(http.StatusOK)
+    _ = json.NewEncoder(w).Encode(conversation)
+}
+
+// Problem, I am not allowed to have 2 different conversations with the same person, needs to be solved

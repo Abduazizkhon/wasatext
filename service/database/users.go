@@ -67,7 +67,7 @@ func (db *appdbimpl) GetUserId(token string) (user UserToken, err error) {
 // -------------
 
 func (db *appdbimpl) UpdateUserName(id int, newname string) (err error) {
-	query := `UPDATE users SET username = ? WHERE id = ?;`
+	query := `UPDATE users SET name = ? WHERE id = ?;`
 	_, err = db.c.Exec(query, newname, id)
 	if err != nil {
 		return
@@ -78,8 +78,6 @@ func (db *appdbimpl) UpdateUserName(id int, newname string) (err error) {
 		return
 	} 
 	return
-
-
 }
 
 

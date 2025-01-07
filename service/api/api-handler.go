@@ -12,6 +12,8 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.POST("/logout", rt.logout)
 	rt.router.GET("/users/myconversations/", rt.GetMyConversations)
 	rt.router.POST("/users/myconversations/newconvo", rt.SendFirstMessage)
+	rt.router.PUT("/users/me/username", rt.UpdateUserName)
+	rt.router.GET("/conversations/:id", rt.GetConversationById)
 // :conversation
 
 

@@ -57,3 +57,22 @@ func (db *appdbimpl) AddUsersToConversation(user_id int, conversation_id int) (e
 	} 
 	return err
 }
+
+func (db *appdbimpl) GetConversationById(conversationId int) (conversation Conversation, err error) {
+    query := "SELECT id, lastconvo, is_group, photo, name FROM conversations WHERE id = ?;"
+    err = db.c.QueryRow(query, conversationId).Scan(
+        &conversation.ID,
+        &conversation.LastConvo,
+        &conversation.IsGroup,
+        &conversation.Photo,
+        &conversation.Name,
+    )
+    if err != nil {
+        if err == sql.ErrNoRows {
+            return conversation, nil // Return an empty conversation if no rows are found
+        }
+        return conversation, err
+    }
+    return conversation, nil
+}
+

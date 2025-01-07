@@ -48,6 +48,7 @@ type AppDatabase interface {
 	CreateConversation_db(isGroup bool, name string, photo string) (conversation Conversation, err error)	
 	GetUserId(token string) (user UserToken, err error)
 	UpdateUserName(id int, newname string) (err error)
+	GetConversationById(conversationId int) (conversation Conversation, err error)
 	Ping() error
 }
 

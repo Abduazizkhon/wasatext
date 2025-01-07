@@ -95,3 +95,40 @@ func (rt *_router) logout(w http.ResponseWriter, r *http.Request, ps httprouter.
 	
 }
 // -----------------Doesn't work
+
+func (rt *_router) UpdateUserName(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+    // Parse input
+    var input struct {
+        ID       int    `json:"id"`
+        NewName  string `json:"newname"`
+    }
+
+    err := json.NewDecoder(r.Body).Decode(&input)
+    if err != nil {
+        rt.baseLogger.WithError(err).Error("Invalid input")
+        w.WriteHeader(http.StatusBadRequest)
+        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid input"})
+        return
+    }
+
+    if input.ID == 0 || input.NewName == "" {
+        rt.baseLogger.Error("Missing required fields")
+        w.WriteHeader(http.StatusBadRequest)
+        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields"})
+        return
+    }
+
+    // Update username in the database
+    err = rt.db.UpdateUserName(input.ID, input.NewName)
+    if err != nil {
+        rt.baseLogger.WithError(err).Error("Failed to update username")
+        w.WriteHeader(http.StatusInternalServerError)
+        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update username"})
+        return
+    }
+
+    // Success response
+    w.WriteHeader(http.StatusOK)
+    _ = json.NewEncoder(w).Encode(map[string]string{"message": "Username updated successfully"})
+}
+
