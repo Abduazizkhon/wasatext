@@ -2,11 +2,14 @@ package api
 
 import (
 	"encoding/json"
+
+
+	"net/http"
+
 	"github.com/Abduazizkhon/wasatext/service/api/reqcontext"
 	"github.com/gofrs/uuid"
-	"github.com/sirupsen/logrus"
-	"net/http"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 )
 
 
@@ -84,7 +87,7 @@ func (rt *_router) logout(w http.ResponseWriter, r *http.Request, ps httprouter.
 	}
 	err = rt.db.DeleteToken(token.Token)
 	if err != nil {
-		rt.baseLogger.WithError(err).Error(err.Error())
+		// rt.baseLogger.WithError(err).Error(err.Error())
 		w.WriteHeader(http.StatusInternalServerError)				
 		return
 	} 
@@ -94,12 +97,12 @@ func (rt *_router) logout(w http.ResponseWriter, r *http.Request, ps httprouter.
 	
 	
 }
-// -----------------Doesn't work
+// -----------------
 
 func (rt *_router) setMyUserName(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
     // Parse input
     var input struct {
-        ID       int    `json:"id"`
+        Token       string    `json:"token"`
         NewName  string `json:"newname"`
     }
 
@@ -111,15 +114,36 @@ func (rt *_router) setMyUserName(w http.ResponseWriter, r *http.Request, ps http
         return
     }
 
-    if input.ID == 0 || input.NewName == "" {
+    if input.Token == "" || input.NewName == "" {
         rt.baseLogger.Error("Missing required fields")
         w.WriteHeader(http.StatusBadRequest)
         _ = json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields"})
         return
     }
 
+	existName, err := rt.db.GetUser(input.NewName)
+	if existName.Username != "" {
+		w.WriteHeader(http.StatusBadRequest)
+        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Username already exists"})
+        return
+	}
+	if err != nil {
+		// rt.baseLogger.WithError(err).Error(err.Error())
+		w.WriteHeader(http.StatusInternalServerError)				
+		return
+	} 
+
+
+
+
     // Update username in the database
-    err = rt.db.UpdateUserName(input.ID, input.NewName)
+	userid, err := rt.db.GetUserId(input.Token)
+	if err != nil {
+		// rt.baseLogger.WithError(err).Error(err.Error())
+		w.WriteHeader(http.StatusInternalServerError)				
+		return
+	} 
+    err = rt.db.UpdateUserName(userid.User_id, input.NewName)
     if err != nil {
         rt.baseLogger.WithError(err).Error("Failed to update username")
         w.WriteHeader(http.StatusInternalServerError)
