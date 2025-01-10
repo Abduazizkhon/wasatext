@@ -6,23 +6,23 @@ import (
 )
 
 type User struct {
-	ID       int    		`json:"id"`
-	Username string 		`json:"username"`
+	ID       int            `json:"id"`
+	Username string         `json:"username"`
 	Photo    sql.NullString `json:"photo"`
-	Token	 string			`json:"token"`
+	Token    string         `json:"token"`
 }
 
 type UserToken struct {
-	ID int `json:"id"`
-	Token string `json:"token"`
-	User_id int `json:"user_id"`
+	ID      int    `json:"id"`
+	Token   string `json:"token"`
+	User_id int    `json:"user_id"`
 }
 
 type Conversation struct {
-	ID          int       `json:"id"`
-	LastConvo   time.Time `json:"last_convo"`
-	IsGroup     bool      `json:"is_group"`
-	Photo       string    `json:"photo"`
+	ID        int       `json:"id"`
+	LastConvo time.Time `json:"last_convo"`
+	IsGroup   bool      `json:"is_group"`
+	Photo     string    `json:"photo"`
 }
 
 type Convmember struct {
@@ -39,5 +39,3 @@ type Message struct {
 	ConversationID int       `json:"conversation_id"`
 	Status         string    `json:"status"`
 }
-
-

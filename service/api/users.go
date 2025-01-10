@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 
-
 	"net/http"
 
 	"github.com/Abduazizkhon/wasatext/service/api/reqcontext"
@@ -11,7 +10,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 )
-
 
 func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var user User
@@ -41,40 +39,39 @@ func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter
 			"reqid":     ctx.ReqUUID.String(),
 			"remote-ip": r.RemoteAddr,
 		})
-	
+
 		if user_obj.ID == 0 {
 			user_obj, err := rt.db.CreateUser(user.Username)
 			if err != nil {
 				rt.baseLogger.WithError(err).Error(err.Error())
-				w.WriteHeader(http.StatusInternalServerError)				
+				w.WriteHeader(http.StatusInternalServerError)
 				return
-			} 
+			}
 			user_obj.Token = reqUUID.String()
 			err = rt.db.SetToken(user_obj.ID, user_obj.Token)
 			if err != nil {
 				rt.baseLogger.WithError(err).Error(err.Error())
-				w.WriteHeader(http.StatusInternalServerError)				
+				w.WriteHeader(http.StatusInternalServerError)
 				return
-			} 
+			}
 			w.WriteHeader(201)
 			w.Header().Set("content-type", "application/json")
-			_= json.NewEncoder(w).Encode(user_obj)
-			
-		} else{
+			_ = json.NewEncoder(w).Encode(user_obj)
+
+		} else {
 			user_obj.Token = reqUUID.String()
 			err = rt.db.SetToken(user_obj.ID, user_obj.Token)
 			if err != nil {
 				rt.baseLogger.WithError(err).Error(err.Error())
-				w.WriteHeader(http.StatusInternalServerError)				
+				w.WriteHeader(http.StatusInternalServerError)
 				return
-			} 
+			}
 			w.WriteHeader(200)
 			w.Header().Set("content-type", "application/json")
-			_= json.NewEncoder(w).Encode(user_obj)
+			_ = json.NewEncoder(w).Encode(user_obj)
 
 		}
-		
-		
+
 	}
 }
 
@@ -88,71 +85,67 @@ func (rt *_router) logout(w http.ResponseWriter, r *http.Request, ps httprouter.
 	err = rt.db.DeleteToken(token.Token)
 	if err != nil {
 		// rt.baseLogger.WithError(err).Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)				
+		w.WriteHeader(http.StatusInternalServerError)
 		return
-	} 
+	}
 	w.WriteHeader(200)
 	w.Header().Set("content-type", "text/plaint")
-	_= json.NewEncoder(w).Encode("Logout is done")
-	
-	
+	_ = json.NewEncoder(w).Encode("Logout is done")
+
 }
+
 // -----------------
 
 func (rt *_router) setMyUserName(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-    // Parse input
-    var input struct {
-        Token       string    `json:"token"`
-        NewName  string `json:"newname"`
-    }
+	// Parse input
+	var input struct {
+		Token   string `json:"token"`
+		NewName string `json:"newname"`
+	}
 
-    err := json.NewDecoder(r.Body).Decode(&input)
-    if err != nil {
-        rt.baseLogger.WithError(err).Error("Invalid input")
-        w.WriteHeader(http.StatusBadRequest)
-        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid input"})
-        return
-    }
+	err := json.NewDecoder(r.Body).Decode(&input)
+	if err != nil {
+		rt.baseLogger.WithError(err).Error("Invalid input")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid input"})
+		return
+	}
 
-    if input.Token == "" || input.NewName == "" {
-        rt.baseLogger.Error("Missing required fields")
-        w.WriteHeader(http.StatusBadRequest)
-        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields"})
-        return
-    }
+	if input.Token == "" || input.NewName == "" {
+		rt.baseLogger.Error("Missing required fields")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Missing required fields"})
+		return
+	}
 
 	existName, err := rt.db.GetUser(input.NewName)
 	if existName.Username != "" {
 		w.WriteHeader(http.StatusBadRequest)
-        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Username already exists"})
-        return
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Username already exists"})
+		return
 	}
 	if err != nil {
 		// rt.baseLogger.WithError(err).Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)				
+		w.WriteHeader(http.StatusInternalServerError)
 		return
-	} 
+	}
 
-
-
-
-    // Update username in the database
+	// Update username in the database
 	userid, err := rt.db.GetUserId(input.Token)
 	if err != nil {
 		// rt.baseLogger.WithError(err).Error(err.Error())
-		w.WriteHeader(http.StatusInternalServerError)				
+		w.WriteHeader(http.StatusInternalServerError)
 		return
-	} 
-    err = rt.db.UpdateUserName(userid.User_id, input.NewName)
-    if err != nil {
-        rt.baseLogger.WithError(err).Error("Failed to update username")
-        w.WriteHeader(http.StatusInternalServerError)
-        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update username"})
-        return
-    }
+	}
+	err = rt.db.UpdateUserName(userid.User_id, input.NewName)
+	if err != nil {
+		rt.baseLogger.WithError(err).Error("Failed to update username")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update username"})
+		return
+	}
 
-    // Success response
-    w.WriteHeader(http.StatusOK)
-    _ = json.NewEncoder(w).Encode(map[string]string{"message": "Username updated successfully"})
+	// Success response
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"message": "Username updated successfully"})
 }
-

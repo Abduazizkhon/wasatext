@@ -4,10 +4,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/Abduazizkhon/wasatext/webui"
 	"io/fs"
 	"net/http"
 	"strings"
+
+	"github.com/Abduazizkhon/wasatext/webui"
 )
 
 func registerWebUI(hdl http.Handler) (http.Handler, error) {

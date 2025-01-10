@@ -14,8 +14,7 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.POST("/users/:id/conversations/:c_id/messages", rt.sendMessage)
 	rt.router.PUT("/users/me/username", rt.setMyUserName)
 	rt.router.GET("/users/:id/conversations/:c_id", rt.getConversation)
-// :conversation
-
+	// :conversation
 
 	return rt.router
 }

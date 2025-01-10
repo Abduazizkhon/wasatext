@@ -43,9 +43,9 @@ type AppDatabase interface {
 	GetUser(username string) (User, error)
 	SetToken(user_id int, token string) (err error)
 	DeleteToken(token string) (err error)
-	GetMyConversations_db(token string) (conversations []Conversation, err error)	
+	GetMyConversations_db(token string) (conversations []Conversation, err error)
 	AddUsersToConversation(user_id int, conversation_id int) (err error)
-	CreateConversation_db(isGroup bool, name string, photo string) (conversation Conversation, err error)	
+	CreateConversation_db(isGroup bool, name string, photo string) (conversation Conversation, err error)
 	GetUserId(token string) (user UserToken, err error)
 	UpdateUserName(id int, newname string) (err error)
 	GetConversationById(conversationId int) (conversation Conversation, err error)
@@ -83,7 +83,7 @@ func (db *appdbimpl) Ping() error {
 }
 
 func createDatabase(db *sql.DB) error {
-	tables := [5] string {
+	tables := [5]string{
 		`CREATE TABLE IF NOT EXISTS users(
 			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
 			name VARCHAR(25) NOT NULL,
@@ -99,7 +99,7 @@ func createDatabase(db *sql.DB) error {
 
 
 		);`,
-		
+
 		`CREATE TABLE IF NOT EXISTS convmembers (
 			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
 			conversation_id INTEGER NOT NULL,
