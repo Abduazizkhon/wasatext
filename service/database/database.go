@@ -54,6 +54,7 @@ type AppDatabase interface {
 	// Message-related methods
 	SendMessage(conversationID int, senderID string, content string) error
 	IsUserInConversation(userID string, conversationID int) (bool, error)
+	SendMessageFull(conversationID int, senderID string, content string) error
 
 	
 

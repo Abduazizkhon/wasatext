@@ -187,4 +187,12 @@ func (db *appdbimpl) IsUserInConversation(userID string, conversationID int) (bo
     }
     return count > 0, nil
 }
+func (db *appdbimpl) SendMessageFull(conversationID int, senderID string, content string) error {
+    query := `
+        INSERT INTO messages (conversation_id, sender, content, datetime, status)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'sent');
+    `
+    _, err := db.c.Exec(query, conversationID, senderID, content)
+    return err
+}
 

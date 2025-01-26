@@ -13,6 +13,7 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.PUT("/users/me/username", rt.wrap(rt.setMyUserName))
 	rt.router.GET("/users/:id/conversations", rt.wrap(rt.getMyConversations))
 	rt.router.POST("/users/:id/conversations/first-message", rt.wrap(rt.sendMessageFirst))	
+	rt.router.POST("/conversations/:conversation_id/messages", rt.wrap(rt.sendMessage)) 
 	// rt.router.POST("/conversations/:c_id/messages", rt.wrap(rt.sendMessage))// Send message to an existing conversation
 	// rt.router.GET("/users/:id/conversations/:c_id", rt.getConversation)
 	// :conversation

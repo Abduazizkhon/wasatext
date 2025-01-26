@@ -177,3 +177,66 @@ func (rt *_router) getConversation(w http.ResponseWriter, r *http.Request, ps ht
 	_ = json.NewEncoder(w).Encode(conversation)
 }
 
+func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
+    // Log the request
+    context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
+
+    // Step 1: Extract conversation ID from the path
+    conversationIDStr := ps.ByName("conversation_id")
+    conversationID, err := strconv.Atoi(conversationIDStr)
+    if err != nil || conversationID <= 0 {
+        context.Logger.WithError(err).Error("Invalid conversation ID")
+        http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
+        return
+    }
+    context.Logger.Infof("Extracted conversation_id: %d", conversationID)
+
+    // Step 2: Extract sender ID from the request context (authenticated user)
+    senderID := context.UserID
+    if senderID == "" {
+        context.Logger.Error("Sender ID is required")
+        http.Error(w, "Sender ID is required", http.StatusUnauthorized)
+        return
+    }
+    context.Logger.Infof("Extracted sender_id: %s", senderID)
+
+    // Step 3: Parse the request body to get the message content
+    var input struct {
+        Content string `json:"content"` // Message content
+    }
+    err = json.NewDecoder(r.Body).Decode(&input)
+    if err != nil || input.Content == "" {
+        context.Logger.WithError(err).Error("Invalid input: content is required")
+        http.Error(w, "Invalid input: content is required", http.StatusBadRequest)
+        return
+    }
+    context.Logger.Infof("Parsed input: content=%s", input.Content)
+
+    // Step 4: Validate if the sender is part of the conversation
+    isMember, err := rt.db.IsUserInConversation(senderID, conversationID)
+    if err != nil {
+        context.Logger.WithError(err).Error("Error checking if user is in conversation")
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
+        return
+    }
+    if !isMember {
+        context.Logger.Error("Sender is not part of the conversation")
+        http.Error(w, "Sender is not part of the conversation", http.StatusForbidden)
+        return
+    }
+
+    // Step 5: Send the message to the database
+    err = rt.db.SendMessageFull(conversationID, senderID, input.Content)
+    if err != nil {
+        context.Logger.WithError(err).Error("Error sending message")
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
+        return
+    }
+    context.Logger.Info("Message sent successfully")
+
+    // Step 6: Respond with success
+    w.WriteHeader(http.StatusCreated)
+    _ = json.NewEncoder(w).Encode(map[string]string{
+        "message": "Message sent successfully",
+    })
+}
