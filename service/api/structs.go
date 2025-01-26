@@ -6,17 +6,13 @@ import (
 )
 
 type User struct {
-	ID       int            `json:"id"`
+	ID       string            `json:"id"`
 	Username string         `json:"username"`
 	Photo    sql.NullString `json:"photo"`
-	Token    string         `json:"token"`
+
 }
 
-type UserToken struct {
-	ID      int    `json:"id"`
-	Token   string `json:"token"`
-	User_id int    `json:"user_id"`
-}
+
 
 type Conversation struct {
 	ID        int       `json:"id"`

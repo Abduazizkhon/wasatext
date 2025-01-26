@@ -39,19 +39,30 @@ import (
 // AppDatabase is the high level interface for the DB
 // all the function that I creat in db nust be declated here
 type AppDatabase interface {
+	// User-related methods
 	CreateUser(username string) (User, error)
 	GetUser(username string) (User, error)
-	SetToken(user_id int, token string) (err error)
-	DeleteToken(token string) (err error)
-	GetMyConversations_db(token string) (conversations []Conversation, err error)
-	AddUsersToConversation(user_id int, conversation_id int) (err error)
+	GetUserId(id string) (User, error) // Fetch a user by ID (UUID)
+
+	// Conversation-related methods
+	// GetMyConversations_db(userID string) (conversations []Conversation, err error)
 	CreateConversation_db(isGroup bool, name string, photo string) (conversation Conversation, err error)
-	GetUserId(token string) (user UserToken, err error)
-	UpdateUserName(id int, newname string) (err error)
-	GetConversationById(conversationId int) (conversation Conversation, err error)
+	AddUsersToConversation(userID string, conversationID int) (err error)
+	GetConversationById(conversationID int) (conversation Conversation, err error)
+	ConversationExists(senderID string, recipientID string) (bool, error)
+	GetMyConversations_db(userID string) ([]ConversationInfo, error)
+	// Message-related methods
+	SendMessage(conversationID int, senderID string, content string) error
+	IsUserInConversation(userID string, conversationID int) (bool, error)
+
+	
+
+	// User updates
+	UpdateUserName(id string, newname string) (err error)
+
+	// Connection health
 	Ping() error
 }
-
 type appdbimpl struct {
 	c *sql.DB
 }
@@ -85,7 +96,7 @@ func (db *appdbimpl) Ping() error {
 func createDatabase(db *sql.DB) error {
 	tables := [5]string{
 		`CREATE TABLE IF NOT EXISTS users(
-			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+			id VARCHAR(64), 
 			name VARCHAR(25) NOT NULL,
 			photo VARCHAR(255)
 		);`,
@@ -120,12 +131,6 @@ func createDatabase(db *sql.DB) error {
 
 
 
-		);`,
-		`CREATE TABLE IF NOT EXISTS usertokens(
-			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
-			user_id INTEGER NOT NULL,
-			token VARCHAR(64),
-			FOREIGN KEY(user_id) REFERENCES users(id)
 		);`,
 	}
 	for t := 0; t < len(tables); t++ {
