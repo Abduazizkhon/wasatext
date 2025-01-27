@@ -31,13 +31,13 @@ export default {}
 						<li class="nav-item">
 							<RouterLink to="/link1" class="nav-link">
 								<svg class="feather"><use href="/feather-sprite-v4.29.0.svg#layout"/></svg>
-								Menu item 1
+								Chats
 							</RouterLink>
 						</li>
 						<li class="nav-item">
 							<RouterLink to="/link2" class="nav-link">
 								<svg class="feather"><use href="/feather-sprite-v4.29.0.svg#key"/></svg>
-								Menu item 2
+								Groups
 							</RouterLink>
 						</li>
 					</ul>
@@ -49,7 +49,7 @@ export default {}
 						<li class="nav-item">
 							<RouterLink :to="'/some/' + 'variable_here' + '/path'" class="nav-link">
 								<svg class="feather"><use href="/feather-sprite-v4.29.0.svg#file-text"/></svg>
-								Item 1
+								Profile
 							</RouterLink>
 						</li>
 					</ul>

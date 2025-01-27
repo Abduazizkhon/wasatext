@@ -27,15 +27,15 @@ export default {
   name: "LoginView",
   data() {
     return {
-      username: "",
-      errorMessage: "",
+      username: "", // Username entered by the user
+      errorMessage: "", // Error message to display
     };
   },
   methods: {
     async doLogin() {
       try {
         const response = await axios.post("http://localhost:3000/session", {
-            username: this.username,
+          username: this.username,
         });
 
         if (response.status === 201) {
@@ -44,14 +44,14 @@ export default {
           alert("Login successful!");
         }
 
-        // Redirect to the homepage or another page after login
+        // Save the username to localStorage
+        console.log("Saving username:", this.username); // Debug log
+        localStorage.setItem("username", this.username);
+
+        // Redirect to the home page
         this.$router.push("/home");
       } catch (error) {
-        if (error.response && error.response.data) {
-          this.errorMessage = error.response.data.error || "An error occurred.";
-        } else {
-          this.errorMessage = "Unable to connect to the server.";
-        }
+        this.errorMessage = error.response?.data?.error || "An error occurred.";
       }
     },
   },
@@ -96,10 +96,6 @@ button {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-}
-
-button:hover {
-  background-color: #0056b3;
 }
 
 .error-message {
