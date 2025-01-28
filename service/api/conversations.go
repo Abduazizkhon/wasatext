@@ -182,7 +182,7 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 	context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
 
 	// Step 1: Extract conversation ID from the path
-	conversationIDStr := ps.ByName("conversation_id")
+	conversationIDStr := ps.ByName("c_id")
 	conversationID, err := strconv.Atoi(conversationIDStr)
 	if err != nil || conversationID <= 0 {
 		context.Logger.WithError(err).Error("Invalid conversation ID")
@@ -291,7 +291,7 @@ func (rt *_router) deleteMessage(w http.ResponseWriter, r *http.Request, ps http
 	context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
 
 	// Step 1: Extract conversation ID and message ID from the path parameters
-	conversationIDStr := ps.ByName("conversation_id")
+	conversationIDStr := ps.ByName("c_id")
 	conversationID, err := strconv.Atoi(conversationIDStr)
 	if err != nil || conversationID <= 0 {
 		context.Logger.WithError(err).Error("Invalid conversation ID")
@@ -299,7 +299,7 @@ func (rt *_router) deleteMessage(w http.ResponseWriter, r *http.Request, ps http
 		return
 	}
 
-	messageIDStr := ps.ByName("message_id")
+	messageIDStr := ps.ByName("m_id")
 	messageID, err := strconv.Atoi(messageIDStr)
 	if err != nil || messageID <= 0 {
 		context.Logger.WithError(err).Error("Invalid message ID")

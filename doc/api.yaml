@@ -659,7 +659,7 @@ paths:
                 minLength: 3
                 maxLength: 50
 
-  /users/{id}/conversations/{c_id}/messages/{m_id}:
+  /conversations/{c_id}/messages/{m_id}:
     parameters:
       - name: id
         in: path
