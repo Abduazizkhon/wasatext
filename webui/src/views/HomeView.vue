@@ -2,6 +2,12 @@
   <div class="home-container">
     <h1>Home Page</h1>
     <p>Welcome, {{ username }}!</p>
+	<li class="nav-item">
+		<RouterLink v-if="isLoggedIn" to="/users/me/username">
+			<svg class="feather"><use href="/feather-sprite-v4.29.0.svg#file-text"/></svg>
+			Profile
+		</RouterLink>
+	</li>
   </div>
 </template>
 
@@ -10,14 +16,21 @@ export default {
   name: "HomeView",
   data() {
     return {
-      username: "", // Username to display
+      username: "",
+      isLoggedIn: false, // Track if the user is logged in
     };
   },
   created() {
-    // Retrieve username from localStorage
     const storedUsername = localStorage.getItem("username");
-    console.log("Stored username:", storedUsername); // Debug log
-    this.username = storedUsername || "Guest";
+    const token = localStorage.getItem("authToken");
+
+    if (token) {
+      this.isLoggedIn = true;
+      this.username = storedUsername || "Guest";
+    } else {
+      this.isLoggedIn = false;
+      this.username = "Guest";
+    }
   },
 };
 </script>

@@ -27,8 +27,8 @@ export default {
   name: "LoginView",
   data() {
     return {
-      username: "", // Username entered by the user
-      errorMessage: "", // Error message to display
+      username: "",
+      errorMessage: "",
     };
   },
   methods: {
@@ -44,11 +44,16 @@ export default {
           alert("Login successful!");
         }
 
-        // Save the username to localStorage
-        console.log("Saving username:", this.username); // Debug log
-        localStorage.setItem("username", this.username);
+        // ✅ Store token and user info properly
+        if (response.data.token && response.data.user) {
+          localStorage.setItem("authToken", response.data.token);
+          localStorage.setItem("username", response.data.user.username);
+          localStorage.setItem("userID", response.data.user.id);
+        } else {
+          throw new Error("Invalid login response");
+        }
 
-        // Redirect to the home page
+        // ✅ Redirect to home page
         this.$router.push("/home");
       } catch (error) {
         this.errorMessage = error.response?.data?.error || "An error occurred.";
