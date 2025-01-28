@@ -13,6 +13,10 @@ import (
 	// "github.com/sirupsen/logrus"
 	"database/sql"
 
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
@@ -83,66 +87,93 @@ func (rt *_router) logout(w http.ResponseWriter, r *http.Request, ps httprouter.
 // -----------------
 
 func (rt *_router) setMyUserName(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-	// Extract the user ID from the context
-	userID := context.UserID
+    userID, err := rt.extractUserIDFromHeader(r)
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusUnauthorized)
+        return
+    }
+
+    var input struct {
+        NewName string `json:"newname"`
+    }
+
+    err = json.NewDecoder(r.Body).Decode(&input)
+    if err != nil || input.NewName == "" {
+        http.Error(w, "Invalid input", http.StatusBadRequest)
+        return
+    }
+
+    existingUser, err := rt.db.GetUser(input.NewName)
+    if existingUser.Username != "" {
+        http.Error(w, "Username already exists", http.StatusConflict)
+        return
+    }
+
+    err = rt.db.UpdateUserName(userID, input.NewName)
+    if err != nil {
+        http.Error(w, "Failed to update username", http.StatusInternalServerError)
+        return
+    }
+
+    w.WriteHeader(http.StatusOK)
+    _ = json.NewEncoder(w).Encode(map[string]string{"message": "Username updated successfully"})
+}
+func (rt *_router) setMyPhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx *reqcontext.RequestContext) {
+	userID := ctx.UserID
 	if userID == "" {
-		rt.baseLogger.Error("User not authenticated")
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "User not authenticated"})
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
 		return
 	}
 
-	// Log the user ID for debugging
-	rt.baseLogger.Infof("setMyUserName: userID=%s", userID)
-
-	// Parse input
-	var input struct {
-		NewName string `json:"newname"` // New username
-	}
-
-	err := json.NewDecoder(r.Body).Decode(&input)
+	// Parse the uploaded file
+	file, header, err := r.FormFile("photo")
 	if err != nil {
-		rt.baseLogger.WithError(err).Error("Invalid input")
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid input"})
+		http.Error(w, "Invalid file upload", http.StatusBadRequest)
 		return
 	}
-	rt.baseLogger.Infof("setMyUserName: newname=%s", input.NewName)
+	defer file.Close()
 
-	if input.NewName == "" {
-		rt.baseLogger.Error("setMyUserName: New username is required")
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "New username is required"})
-		return
-	}
-
-	// Check if the new username already exists
-	existName, err := rt.db.GetUser(input.NewName)
-	if err != nil && err != sql.ErrNoRows {
-		rt.baseLogger.WithError(err).Error("setMyUserName: Error checking existing username")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Internal server error"})
+	// Validate the file extension
+	fileExt := strings.ToLower(filepath.Ext(header.Filename))
+	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true}
+	if !allowedExts[fileExt] {
+		http.Error(w, "Invalid file type", http.StatusBadRequest)
 		return
 	}
 
-	if existName.Username != "" {
-		rt.baseLogger.Error("setMyUserName: Username already exists")
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Username already exists"})
-		return
-	}
+	// Ensure upload directory exists
+	uploadDir := "webui/public/uploads"
+	_ = os.MkdirAll(uploadDir, os.ModePerm)
 
-	// Update username in the database
-	err = rt.db.UpdateUserName(userID, input.NewName)
+	// Generate the new filename using the user ID
+	fileName := userID + fileExt
+	filePath := filepath.Join(uploadDir, fileName)
+
+	// Save the file
+	out, err := os.Create(filePath)
 	if err != nil {
-		rt.baseLogger.WithError(err).Error("setMyUserName: Failed to update username")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update username"})
+		http.Error(w, "Failed to save image", http.StatusInternalServerError)
+		return
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, file)
+	if err != nil {
+		http.Error(w, "Failed to save image", http.StatusInternalServerError)
 		return
 	}
 
-	// Success response
-	rt.baseLogger.Info("setMyUserName: Username updated successfully")
+	// Generate the correct photo URL for the frontend
+	photoURL := "/uploads/" + fileName
+
+	// Update the user's profile photo in the database
+	err = rt.db.UpdateUserPhoto(userID, photoURL)
+	if err != nil {
+		http.Error(w, "Failed to update profile picture", http.StatusInternalServerError)
+		return
+	}
+
+	// Send response with the updated photo URL
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{"message": "Username updated successfully"})
+	_ = json.NewEncoder(w).Encode(map[string]string{"message": "Profile picture updated successfully", "photo": photoURL})
 }

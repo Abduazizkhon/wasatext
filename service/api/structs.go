@@ -6,13 +6,10 @@ import (
 )
 
 type User struct {
-	ID       string            `json:"id"`
+	ID       string         `json:"id"`
 	Username string         `json:"username"`
 	Photo    sql.NullString `json:"photo"`
-
 }
-
-
 
 type Conversation struct {
 	ID        int       `json:"id"`
@@ -34,4 +31,10 @@ type Message struct {
 	Sender         int       `json:"sender"`
 	ConversationID int       `json:"conversation_id"`
 	Status         string    `json:"status"`
+}
+
+type Participant struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	Photo    string `json:"photo"`
 }

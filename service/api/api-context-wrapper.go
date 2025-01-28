@@ -12,7 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-
 // httpRouterHandler is the signature for functions that accepts a reqcontext.RequestContext in addition to those
 // required by the httprouter package.
 type httpRouterHandler func(http.ResponseWriter, *http.Request, httprouter.Params, *reqcontext.RequestContext)
@@ -84,22 +83,18 @@ func (rt *_router) wrap(fn httpRouterHandler) func(http.ResponseWriter, *http.Re
 		fn(w, r, ps, ctx)
 	}
 }
+
 // extractUserIDFromHeader extracts the user ID (token) from the Authorization header
 func (rt *_router) extractUserIDFromHeader(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		return "", errors.New("authorization header required")
+		return "", errors.New("Unauthorized: Missing Authorization header")
 	}
 
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
-		return "", errors.New("invalid authorization header format")
+		return "", errors.New("Unauthorized: Invalid Authorization format")
 	}
 
-	userID := parts[1]
-	if userID == "" {
-		return "", errors.New("user ID (token) required")
-	}
-
-	return userID, nil
+	return parts[1], nil // ✅ Return token as user ID
 }

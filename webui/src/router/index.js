@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import LoginView from "../views/LoginView.vue"
 import UsernameView from "../views/UsernameView.vue"
+import SetMyPhotoView from "../views/ProfileView.vue" // Import the new view
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
@@ -20,7 +21,22 @@ const router = createRouter({
           next(); // Allow access if logged in
         }
       }
-    }
+    },
+	{ 
+		path: '/users/me/photo', 
+		component: SetMyPhotoView, // Add the photo upload view
+		beforeEnter: (to, from, next) => {
+		  const token = localStorage.getItem("authToken");
+		  console.log("Router Guard Check (Photo): Token =", token); // DEBUG
+		  if (!token) {
+			next("/"); // Redirect to login if not authenticated
+		  } else {
+			next(); // Allow access if logged in
+		  }
+		}
+	  }
+
+
   ]
 });
 

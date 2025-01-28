@@ -2,19 +2,18 @@ package database
 
 import (
 	"database/sql"
-
 )
 
 // GetMyConversations_db retrieves all conversations for a specific user based on their UUID (id).
 // func (db *appdbimpl) GetMyConversations_db(userID string) (conversations []Conversation, err error) {
 // 	query := `
-// 		SELECT 
+// 		SELECT
 // 			conversations.id, conversations.lastconvo, conversations.is_group, conversations.photo, conversations.name
-// 		FROM 
+// 		FROM
 // 			convmembers
-// 		JOIN 
+// 		JOIN
 // 			conversations ON convmembers.conversation_id = conversations.id
-// 		WHERE 
+// 		WHERE
 // 			convmembers.user_id = ?;
 // 	`
 
@@ -43,9 +42,7 @@ import (
 
 // CreateConversation_db creates a new conversation and returns its details.
 
-
 // AddUsersToConversation adds a user to a conversation.
-
 
 // GetConversationById retrieves the details of a specific conversation by its ID.
 func (db *appdbimpl) GetConversationById(conversationID int) (conversation Conversation, err error) {
@@ -74,8 +71,6 @@ func (db *appdbimpl) GetConversationById(conversationID int) (conversation Conve
 
 // -------Messages-----
 
-
-
 func (db *appdbimpl) CreateConversation_db(isGroup bool, name string, photo string) (conversation Conversation, err error) {
 	query := `
 		INSERT INTO conversations (lastconvo, is_group, name, photo)
@@ -99,6 +94,7 @@ func (db *appdbimpl) AddUsersToConversation(userID string, conversationID int) (
 	_, err = db.c.Exec(query, userID, conversationID)
 	return
 }
+
 // func (db *appdbimpl) SendMessage(conversationID int, senderID string, content string) error {
 // 	query := `
 // 		INSERT INTO messages (conversation_id, sender, content, datetime, status)
@@ -110,23 +106,23 @@ func (db *appdbimpl) AddUsersToConversation(userID string, conversationID int) (
 
 // Check if a conversation already exists between two users
 func (db *appdbimpl) ConversationExists(senderID string, recipientID string) (bool, error) {
-    query := `
+	query := `
         SELECT COUNT(*) 
         FROM convmembers cm1
         JOIN convmembers cm2 ON cm1.conversation_id = cm2.conversation_id
         WHERE cm1.user_id = ? AND cm2.user_id = ?;
     `
-    var count int
-    err := db.c.QueryRow(query, senderID, recipientID).Scan(&count)
-    if err != nil {
-        return false, err
-    }
-    return count > 0, nil
+	var count int
+	err := db.c.QueryRow(query, senderID, recipientID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // GetMyConversations_db retrieves all conversations for a specific user.
 func (db *appdbimpl) GetMyConversations_db(userID string) ([]ConversationInfo, error) {
-    query := `
+	query := `
         SELECT 
             u.name AS other_user_name,
             c.lastconvo
@@ -141,58 +137,151 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]ConversationInfo, e
         WHERE 
             cm1.user_id = ? AND cm2.user_id != ?;
     `
-    rows, err := db.c.Query(query, userID, userID)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	rows, err := db.c.Query(query, userID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    var conversations []ConversationInfo
-    for rows.Next() {
-        var convo ConversationInfo
-        err := rows.Scan(&convo.OtherUserName, &convo.LastConvo)
-        if err != nil {
-            return nil, err
-        }
-        conversations = append(conversations, convo)
-    }
+	var conversations []ConversationInfo
+	for rows.Next() {
+		var convo ConversationInfo
+		err := rows.Scan(&convo.OtherUserName, &convo.LastConvo)
+		if err != nil {
+			return nil, err
+		}
+		conversations = append(conversations, convo)
+	}
 
-    if err = rows.Err(); err != nil {
-        return nil, err
-    }
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
 
-    return conversations, nil
+	return conversations, nil
 }
 
 // SendMessage inserts a new message into the database.
 func (db *appdbimpl) SendMessage(conversationID int, senderID string, content string) error {
-    query := `
+	query := `
         INSERT INTO messages (conversation_id, sender, content, datetime, status)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'sent');
     `
-    _, err := db.c.Exec(query, conversationID, senderID, content)
-    return err
+	_, err := db.c.Exec(query, conversationID, senderID, content)
+	return err
 }
 
 func (db *appdbimpl) IsUserInConversation(userID string, conversationID int) (bool, error) {
-    query := `
+	query := `
         SELECT COUNT(*) 
         FROM convmembers 
         WHERE user_id = ? AND conversation_id = ?;
     `
-    var count int
-    err := db.c.QueryRow(query, userID, conversationID).Scan(&count)
-    if err != nil {
-        return false, err
-    }
-    return count > 0, nil
+	var count int
+	err := db.c.QueryRow(query, userID, conversationID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 func (db *appdbimpl) SendMessageFull(conversationID int, senderID string, content string) error {
-    query := `
+	query := `
         INSERT INTO messages (conversation_id, sender, content, datetime, status)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'sent');
     `
-    _, err := db.c.Exec(query, conversationID, senderID, content)
-    return err
+	_, err := db.c.Exec(query, conversationID, senderID, content)
+	return err
 }
 
+func (db *appdbimpl) GetMessagesByConversationId(conversationID int) ([]MessageWithSender, error) {
+	query := `
+        SELECT 
+            m.id, 
+            m.datetime, 
+            m.content, 
+            u.id AS sender_id, 
+            u.name AS sender_username, 
+            u.photo AS sender_photo
+        FROM 
+            messages m
+        JOIN 
+            users u ON m.sender = u.id
+        WHERE 
+            m.conversation_id = ?
+        ORDER BY 
+            m.datetime ASC;
+    `
+	rows, err := db.c.Query(query, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var messages []MessageWithSender
+	for rows.Next() {
+		var msg MessageWithSender
+		err := rows.Scan(
+			&msg.ID,
+			&msg.Datetime,
+			&msg.Content,
+			&msg.SenderID,
+			&msg.SenderUsername,
+			&msg.SenderPhoto, // Now using sql.NullString
+		)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, msg)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return messages, nil
+}
+
+func (db *appdbimpl) IsMessageOwner(userID string, messageID int) (bool, error) {
+	query := `
+        SELECT COUNT(*) 
+        FROM messages 
+        WHERE id = ? AND sender = ?;
+    `
+	var count int
+	err := db.c.QueryRow(query, messageID, userID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (db *appdbimpl) DeleteMessage(messageID int) error {
+	query := `
+        DELETE FROM messages 
+        WHERE id = ?;
+    `
+	_, err := db.c.Exec(query, messageID)
+	return err
+}
+
+func (db *appdbimpl) GetMessageContent(messageID int) (string, error) {
+	query := `
+        SELECT content 
+        FROM messages 
+        WHERE id = ?;
+    `
+	var content string
+	err := db.c.QueryRow(query, messageID).Scan(&content)
+	if err != nil {
+		return "", err
+	}
+	return content, nil
+}
+
+func (db *appdbimpl) ForwardMessage(targetConversationID int, senderID string, content string) error {
+	query := `
+        INSERT INTO messages (conversation_id, sender, content, datetime, status)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'forwarded');
+    `
+	_, err := db.c.Exec(query, targetConversationID, senderID, content)
+	return err
+}

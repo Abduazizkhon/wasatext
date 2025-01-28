@@ -36,72 +36,59 @@ export default {
   name: "UsernameView",
   data() {
     return {
-      newUsername: "", // Holds the new username input
-      isLoggedIn: false, // Tracks login status
-      successMessage: "", // Message to show on success
-      errorMessage: "", // Message to show on error
+      newUsername: "",
+      isLoggedIn: false,
+      successMessage: "",
+      errorMessage: "",
     };
   },
   created() {
-    // ✅ Ensure the user is logged in by checking for an auth token
     const token = localStorage.getItem("authToken");
-    console.log("Checking login status: Token =", token); // Debugging
-
     if (token) {
       this.isLoggedIn = true;
     } else {
       this.isLoggedIn = false;
-      this.$router.push("/"); // Redirect to login if not logged in
+      this.$router.push("/"); // Redirect if not logged in
     }
   },
   methods: {
     async updateUsername() {
-      if (!this.isLoggedIn) {
-        this.errorMessage = "You must be logged in to update your username.";
-        return;
-      }
-
-      try {
+        this.errorMessage = "";
         const token = localStorage.getItem("authToken");
+
         if (!token) {
-          this.errorMessage = "User not authenticated. Please log in.";
-          return;
+            this.errorMessage = "You must be logged in.";
+            return;
         }
 
-        console.log("Attempting to update username:", this.newUsername); // Debugging
+        try {
+            console.log("Updating username:", this.newUsername); // Debugging log
+            console.log("Auth Token:", token); // Debugging log
 
-        // ✅ Send API request to update the username
-        const response = await axios.put(
-          "http://localhost:3000/users/me/username",
-          { newname: this.newUsername },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`, // Include token in Authorization header
-            },
-          }
-        );
+            const response = await axios.put(`http://localhost:3000/users/me/username?t=${new Date().getTime()}`, 
+                { newname: this.newUsername },
+                {
+                    headers: {
+                        "Authorization": `Bearer ${token}`, // ✅ Ensure correct token format
+                        "Content-Type": "application/json"
+                    }
+                }
+            );
 
-        // ✅ Handle successful response
-        this.successMessage = response.data.message;
-        this.errorMessage = ""; // Clear any previous errors
-        alert("Username updated successfully!");
+            console.log("Response:", response); // Debugging log
+            localStorage.setItem("username", this.newUsername);
+            this.successMessage = "Username updated successfully!";
+            this.errorMessage = "";
 
-        // ✅ Update localStorage with the new username
-        localStorage.setItem("username", this.newUsername);
-
-        // ✅ Redirect to home page after successful update
-        this.$router.push("/home");
-      } catch (error) {
-        // Handle errors from the API
-        this.successMessage = "";
-        if (error.response && error.response.data) {
-          this.errorMessage = error.response.data.error;
-        } else {
-          this.errorMessage = "An error occurred. Please try again.";
+            setTimeout(() => {
+                this.$router.push("/home");
+            }, 1000);
+        } catch (error) {
+            console.error("Error updating username:", error);
+            this.errorMessage = error.response?.data?.error || "An error occurred. Please try again.";
         }
-      }
-    },
-  },
+    }
+  }
 };
 </script>
 

@@ -35,7 +35,21 @@ type Message struct {
 }
 
 type ConversationInfo struct {
-    OtherUserName string    `json:"other_user_name"` // Name of the other user in the conversation
-    LastConvo     time.Time `json:"last_convo"`      // Timestamp of the last conversation
+	OtherUserName string    `json:"other_user_name"` // Name of the other user in the conversation
+	LastConvo     time.Time `json:"last_convo"`      // Timestamp of the last conversation
 }
 
+// type Participant struct {
+//     ID       string `json:"id"`
+//     Username string `json:"username"`
+//     Photo    string `json:"photo"`
+// }
+
+type MessageWithSender struct {
+	ID             int            `json:"id"`
+	Datetime       time.Time      `json:"datetime"`
+	Content        string         `json:"content"`
+	SenderID       string         `json:"sender_id"`
+	SenderUsername string         `json:"sender_username"`
+	SenderPhoto    sql.NullString `json:"sender_photo"` // Use sql.NullString for nullable fields
+}

@@ -1,9 +1,10 @@
 package database
 
 import (
-	"fmt"
-	"github.com/gofrs/uuid"
 	"database/sql"
+	"fmt"
+
+	"github.com/gofrs/uuid"
 )
 
 // func (db *appdbimpl) CreateUser(username string) (user User, err error) {
@@ -17,35 +18,34 @@ import (
 // }
 
 func (db *appdbimpl) CreateUser(username string) (User, error) {
-    // Start a transaction
-    tx, err := db.c.Begin()
-    if err != nil {
-        return User{}, err
-    }
-    defer tx.Rollback() // Rollback the transaction if it's not committed
+	// Start a transaction
+	tx, err := db.c.Begin()
+	if err != nil {
+		return User{}, err
+	}
+	defer tx.Rollback() // Rollback the transaction if it's not committed
 
-    // Generate a UUID
-    id, err := uuid.NewV4()
-    if err != nil {
-        return User{}, err
-    }
+	// Generate a UUID
+	id, err := uuid.NewV4()
+	if err != nil {
+		return User{}, err
+	}
 
-    // Insert the new user
-    query := `INSERT INTO users (id, name) VALUES (?, ?);`
-    _, err = tx.Exec(query, id.String(), username)
-    if err != nil {
-        return User{}, err
-    }
+	// Insert the new user
+	query := `INSERT INTO users (id, name) VALUES (?, ?);`
+	_, err = tx.Exec(query, id.String(), username)
+	if err != nil {
+		return User{}, err
+	}
 
-    // Commit the transaction
-    if err := tx.Commit(); err != nil {
-        return User{}, err
-    }
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		return User{}, err
+	}
 
-    // Retrieve the created user
-    return db.GetUser(username)
+	// Retrieve the created user
+	return db.GetUser(username)
 }
-
 
 func (db *appdbimpl) GetUser(username string) (user User, err error) {
 	query := `SELECT id, name FROM users WHERE name = ?;`
@@ -55,10 +55,10 @@ func (db *appdbimpl) GetUser(username string) (user User, err error) {
 	err = row.Scan(&user.ID, &user.Username)
 	if err == sql.ErrNoRows {
 		// Return a clear error if no user is found
-		return 
+		return
 	} else if err != nil {
 		// Return the database error for debugging
-		return 
+		return
 	}
 
 	// Successfully found the user
@@ -111,25 +111,48 @@ func (db *appdbimpl) GetUserId(id string) (user User, err error) {
 
 // -------------
 func (db *appdbimpl) UpdateUserName(id string, newname string) (err error) {
-	// Check if the new username already exists
-	checkQuery := `SELECT COUNT(*) FROM users WHERE name = ?;`
-	var count int
-	err = db.c.QueryRow(checkQuery, newname).Scan(&count)
-	if err != nil {
-		return fmt.Errorf("failed to check if username exists: %w", err)
-	}
+    tx, err := db.c.Begin()
+    if err != nil {
+        return fmt.Errorf("failed to start transaction: %w", err)
+    }
+    defer tx.Rollback() 
 
-	// If the username already exists, return an error
-	if count > 0 {
-		return fmt.Errorf("username '%s' is already taken", newname)
-	}
+    // Check if the username already exists
+    var count int
+    checkQuery := `SELECT COUNT(*) FROM users WHERE name = ?;`
+    err = tx.QueryRow(checkQuery, newname).Scan(&count)
+    if err != nil {
+        return fmt.Errorf("failed to check if username exists: %w", err)
+    }
+    if count > 0 {
+        return fmt.Errorf("username '%s' is already taken", newname)
+    }
 
-	// Update the username in the users table
-	updateUserQuery := `UPDATE users SET name = ? WHERE id = ?;`
-	_, err = db.c.Exec(updateUserQuery, newname, id)
-	if err != nil {
-		return fmt.Errorf("failed to update username in users table: %w", err)
-	}
+    // Update the username in the users table
+    updateUserQuery := `UPDATE users SET name = ? WHERE id = ?;`
+    _, err = tx.Exec(updateUserQuery, newname, id)
+    if err != nil {
+        return fmt.Errorf("failed to update username in users table: %w", err)
+    }
 
-	return nil
+    // ✅ Update all conversation names linked to this user
+    updateConversationQuery := `UPDATE conversations SET name = ? WHERE id IN (
+        SELECT conversation_id FROM convmembers WHERE user_id = ?
+    );`
+    _, err = tx.Exec(updateConversationQuery, newname, id)
+    if err != nil {
+        return fmt.Errorf("failed to update conversation names: %w", err)
+    }
+
+    if err := tx.Commit(); err != nil {
+        return fmt.Errorf("failed to commit transaction: %w", err)
+    }
+
+    return nil
+}
+
+func (db *appdbimpl) UpdateUserPhoto(userID string, photoPath string) error {
+	query := `UPDATE users SET photo = ? WHERE id = ?;`
+	_, err := db.c.Exec(query, photoPath, userID)
+	return err
 }

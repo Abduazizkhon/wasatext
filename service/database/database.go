@@ -43,6 +43,7 @@ type AppDatabase interface {
 	CreateUser(username string) (User, error)
 	GetUser(username string) (User, error)
 	GetUserId(id string) (User, error) // Fetch a user by ID (UUID)
+	UpdateUserPhoto(userID string, filePath string) error
 
 	// Conversation-related methods
 	// GetMyConversations_db(userID string) (conversations []Conversation, err error)
@@ -55,8 +56,11 @@ type AppDatabase interface {
 	SendMessage(conversationID int, senderID string, content string) error
 	IsUserInConversation(userID string, conversationID int) (bool, error)
 	SendMessageFull(conversationID int, senderID string, content string) error
-
-	
+	GetMessagesByConversationId(conversationID int) ([]MessageWithSender, error)
+	IsMessageOwner(userID string, messageID int) (bool, error)
+	DeleteMessage(messageID int) error
+	GetMessageContent(messageID int) (string, error)
+	ForwardMessage(targetConversationID int, senderID string, content string) error
 
 	// User updates
 	UpdateUserName(id string, newname string) (err error)
