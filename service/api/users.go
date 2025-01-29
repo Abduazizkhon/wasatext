@@ -87,36 +87,36 @@ func (rt *_router) logout(w http.ResponseWriter, r *http.Request, ps httprouter.
 // -----------------
 
 func (rt *_router) setMyUserName(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-    userID, err := rt.extractUserIDFromHeader(r)
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusUnauthorized)
-        return
-    }
+	userID, err := rt.extractUserIDFromHeader(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
 
-    var input struct {
-        NewName string `json:"newname"`
-    }
+	var input struct {
+		NewName string `json:"newname"`
+	}
 
-    err = json.NewDecoder(r.Body).Decode(&input)
-    if err != nil || input.NewName == "" {
-        http.Error(w, "Invalid input", http.StatusBadRequest)
-        return
-    }
+	err = json.NewDecoder(r.Body).Decode(&input)
+	if err != nil || input.NewName == "" {
+		http.Error(w, "Invalid input", http.StatusBadRequest)
+		return
+	}
 
-    existingUser, err := rt.db.GetUser(input.NewName)
-    if existingUser.Username != "" {
-        http.Error(w, "Username already exists", http.StatusConflict)
-        return
-    }
+	existingUser, err := rt.db.GetUser(input.NewName)
+	if existingUser.Username != "" {
+		http.Error(w, "Username already exists", http.StatusConflict)
+		return
+	}
 
-    err = rt.db.UpdateUserName(userID, input.NewName)
-    if err != nil {
-        http.Error(w, "Failed to update username", http.StatusInternalServerError)
-        return
-    }
+	err = rt.db.UpdateUserName(userID, input.NewName)
+	if err != nil {
+		http.Error(w, "Failed to update username", http.StatusInternalServerError)
+		return
+	}
 
-    w.WriteHeader(http.StatusOK)
-    _ = json.NewEncoder(w).Encode(map[string]string{"message": "Username updated successfully"})
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"message": "Username updated successfully"})
 }
 func (rt *_router) setMyPhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx *reqcontext.RequestContext) {
 	userID := ctx.UserID

@@ -1,3 +1,4 @@
+
 <template>
   <div class="profile-container">
     <h1>Profile</h1>
@@ -45,31 +46,39 @@ export default {
       this.selectedFile = event.target.files[0];
     },
     async updatePhoto() {
-      if (!this.selectedFile) {
-        this.errorMessage = "Please select an image first.";
-        return;
-      }
+        if (!this.selectedFile) {
+            this.errorMessage = "Please select an image first.";
+            return;
+        }
 
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        this.errorMessage = "You must be logged in.";
-        return;
-      }
+        const token = localStorage.getItem("authToken");
+        const userID = localStorage.getItem("userID"); // ✅ Get user ID
 
-      const formData = new FormData();
-      formData.append("photo", this.selectedFile);
+        if (!token || !userID) {
+            this.errorMessage = "You must be logged in.";
+            return;
+        }
 
-      try {
-        const response = await axios.put("http://localhost:3000/users/me/photo", formData, {
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" }
-        });
+        const formData = new FormData();
+        formData.append("photo", this.selectedFile);
 
-        // Store updated profile photo and redirect to home page
-        localStorage.setItem("profilePhoto", response.data.photo);
-        this.$router.push("/home"); // ✅ Redirect to home after updating the photo
-      } catch (error) {
-        this.errorMessage = error.response?.data?.error || "An error occurred.";
-      }
+        try {
+            const response = await axios.put("http://localhost:3000/users/me/photo", formData, {
+                headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" }
+            });
+
+            if (response.data.photo) {
+                this.profilePhoto = response.data.photo; // ✅ Update component state
+
+                // ✅ Store photo in localStorage with user ID
+                localStorage.setItem(`profilePhoto_${userID}`, response.data.photo);
+
+                // Redirect to home page
+                this.$router.push("/home");
+            }
+        } catch (error) {
+            this.errorMessage = error.response?.data?.error || "An error occurred.";
+        }
     },
     async fetchProfilePhoto() {
       const token = localStorage.getItem("authToken");

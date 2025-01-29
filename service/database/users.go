@@ -111,44 +111,44 @@ func (db *appdbimpl) GetUserId(id string) (user User, err error) {
 
 // -------------
 func (db *appdbimpl) UpdateUserName(id string, newname string) (err error) {
-    tx, err := db.c.Begin()
-    if err != nil {
-        return fmt.Errorf("failed to start transaction: %w", err)
-    }
-    defer tx.Rollback() 
+	tx, err := db.c.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback()
 
-    // Check if the username already exists
-    var count int
-    checkQuery := `SELECT COUNT(*) FROM users WHERE name = ?;`
-    err = tx.QueryRow(checkQuery, newname).Scan(&count)
-    if err != nil {
-        return fmt.Errorf("failed to check if username exists: %w", err)
-    }
-    if count > 0 {
-        return fmt.Errorf("username '%s' is already taken", newname)
-    }
+	// Check if the username already exists
+	var count int
+	checkQuery := `SELECT COUNT(*) FROM users WHERE name = ?;`
+	err = tx.QueryRow(checkQuery, newname).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("failed to check if username exists: %w", err)
+	}
+	if count > 0 {
+		return fmt.Errorf("username '%s' is already taken", newname)
+	}
 
-    // Update the username in the users table
-    updateUserQuery := `UPDATE users SET name = ? WHERE id = ?;`
-    _, err = tx.Exec(updateUserQuery, newname, id)
-    if err != nil {
-        return fmt.Errorf("failed to update username in users table: %w", err)
-    }
+	// Update the username in the users table
+	updateUserQuery := `UPDATE users SET name = ? WHERE id = ?;`
+	_, err = tx.Exec(updateUserQuery, newname, id)
+	if err != nil {
+		return fmt.Errorf("failed to update username in users table: %w", err)
+	}
 
-    // ✅ Update all conversation names linked to this user
-    updateConversationQuery := `UPDATE conversations SET name = ? WHERE id IN (
+	// ✅ Update all conversation names linked to this user
+	updateConversationQuery := `UPDATE conversations SET name = ? WHERE id IN (
         SELECT conversation_id FROM convmembers WHERE user_id = ?
     );`
-    _, err = tx.Exec(updateConversationQuery, newname, id)
-    if err != nil {
-        return fmt.Errorf("failed to update conversation names: %w", err)
-    }
+	_, err = tx.Exec(updateConversationQuery, newname, id)
+	if err != nil {
+		return fmt.Errorf("failed to update conversation names: %w", err)
+	}
 
-    if err := tx.Commit(); err != nil {
-        return fmt.Errorf("failed to commit transaction: %w", err)
-    }
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
 
-    return nil
+	return nil
 }
 
 func (db *appdbimpl) UpdateUserPhoto(userID string, photoPath string) error {

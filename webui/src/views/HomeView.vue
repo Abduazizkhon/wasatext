@@ -28,21 +28,35 @@ export default {
     this.fetchProfilePhoto();
   },
   methods: {
-    async fetchProfilePhoto() {
-      const token = localStorage.getItem("authToken");
-      try {
-        const response = await axios.get("http://localhost:3000/users/me", {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+	async fetchProfilePhoto() {
+		const token = localStorage.getItem("authToken");
+		const userID = localStorage.getItem("userID"); // ✅ Get user ID
 
-        if (response.data.photo) {
-          this.profilePhoto = response.data.photo;
-          localStorage.setItem("profilePhoto", response.data.photo); // ✅ Update localStorage
-        }
-      } catch (error) {
-        console.error("Error fetching profile photo:", error);
-      }
-    }
+		if (!userID) {
+			console.error("User ID is missing");
+			return;
+		}
+
+		// ✅ Load photo from localStorage if available
+		const cachedPhoto = localStorage.getItem(`profilePhoto_${userID}`);
+		if (cachedPhoto) {
+			this.profilePhoto = cachedPhoto;
+			return;
+		}
+
+		try {
+			const response = await axios.get(`http://localhost:3000/users/${userID}`, {
+				headers: { Authorization: `Bearer ${token}` },
+			});
+
+			if (response.data.photo) {
+				this.profilePhoto = response.data.photo; // ✅ Update state
+				localStorage.setItem(`profilePhoto_${userID}`, response.data.photo); // ✅ Store
+			}
+		} catch (error) {
+			console.error("Error fetching profile photo:", error);
+		}
+	}
   }
 };
 </script>
