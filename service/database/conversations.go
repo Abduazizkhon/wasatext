@@ -285,3 +285,39 @@ func (db *appdbimpl) ForwardMessage(targetConversationID int, senderID string, c
 	_, err := db.c.Exec(query, targetConversationID, senderID, content)
 	return err
 }
+
+// ✅ Remove a user from a group
+func (db *appdbimpl) RemoveUserFromGroup(userID string, groupID int) error {
+	query := `DELETE FROM convmembers WHERE user_id = ? AND conversation_id = ?;`
+	_, err := db.c.Exec(query, userID, groupID)
+	return err
+}
+
+// ✅ Get the count of remaining members in a group
+func (db *appdbimpl) GetGroupMemberCount(groupID int) (int, error) {
+	query := `SELECT COUNT(*) FROM convmembers WHERE conversation_id = ?;`
+	var count int
+	err := db.c.QueryRow(query, groupID).Scan(&count)
+	return count, err
+}
+
+// ✅ Delete a group if empty
+func (db *appdbimpl) DeleteGroup(groupID int) error {
+	query := `DELETE FROM conversations WHERE id = ?;`
+	_, err := db.c.Exec(query, groupID)
+	return err
+}
+
+// ✅ Check if a conversation is a group
+func (db *appdbimpl) IsConversationGroup(conversationID int) (bool, error) {
+	query := `SELECT is_group FROM conversations WHERE id = ?;`
+	var isGroup bool
+	err := db.c.QueryRow(query, conversationID).Scan(&isGroup)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil // No conversation found
+		}
+		return false, err
+	}
+	return isGroup, nil
+}

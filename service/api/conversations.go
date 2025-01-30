@@ -445,3 +445,219 @@ func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps htt
 		"message": "Message forwarded successfully",
 	})
 }
+
+// createGroup handles the creation of a new group conversation
+func (rt *_router) createGroup(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
+    creatorID := context.UserID // ✅ Get authenticated user (creator)
+    if creatorID == "" {
+        http.Error(w, "User not authenticated", http.StatusUnauthorized)
+        return
+    }
+
+    // Parse request body
+    var input struct {
+        GroupName  string   `json:"group_name"`  // ✅ Group name
+        Photo      string   `json:"photo,omitempty"` // Optional group photo
+        Usernames  []string `json:"usernames"`  // ✅ List of usernames to add (creator auto-added)
+    }
+    err := json.NewDecoder(r.Body).Decode(&input)
+    if err != nil || input.GroupName == "" {
+        http.Error(w, "Invalid input: group_name is required", http.StatusBadRequest)
+        return
+    }
+
+    // ✅ Step 1: Create a new group conversation
+    newGroup, err := rt.db.CreateConversation_db(true, input.GroupName, input.Photo)
+    if err != nil {
+        http.Error(w, "Error creating group", http.StatusInternalServerError)
+        return
+    }
+
+    // ✅ Step 2: Add the creator to the group
+    err = rt.db.AddUsersToConversation(creatorID, newGroup.ID)
+    if err != nil {
+        http.Error(w, "Error adding creator to group", http.StatusInternalServerError)
+        return
+    }
+
+    // List to store added member usernames
+    members := []string{}
+
+    // ✅ Fetch and add creator's username
+    creator, _ := rt.db.GetUserId(creatorID)
+    members = append(members, creator.Username)
+
+    // ✅ Step 3: Fetch user IDs for given usernames and add them to the group
+    for _, username := range input.Usernames {
+        user, err := rt.db.GetUser(username)
+        if err != nil {
+            if err == sql.ErrNoRows {
+                http.Error(w, "User '"+username+"' not found", http.StatusNotFound)
+                return
+            }
+            http.Error(w, "Error fetching user "+username, http.StatusInternalServerError)
+            return
+        }
+
+        err = rt.db.AddUsersToConversation(user.ID, newGroup.ID)
+        if err != nil {
+            http.Error(w, "Error adding user "+username+" to group", http.StatusInternalServerError)
+            return
+        }
+
+        // ✅ Add username to the members list
+        members = append(members, user.Username)
+    }
+
+    // ✅ Step 4: Respond with success, group details, and members
+    w.WriteHeader(http.StatusCreated)
+    _ = json.NewEncoder(w).Encode(map[string]interface{}{
+        "message":    "Group created successfully",
+        "group_id":   newGroup.ID,  // ✅ `group_id` is actually `c_id`
+        "c_id":       newGroup.ID,  // ✅ Explicitly return `c_id`
+        "group_name": newGroup.Name,
+        "photo":      newGroup.Photo,
+        "members":    members,  // ✅ Only usernames
+    })
+}
+
+func (rt *_router) addToGroup(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
+    // Extract user making the request (must be part of the group)
+    requesterID := context.UserID
+    if requesterID == "" {
+        http.Error(w, "User not authenticated", http.StatusUnauthorized)
+        return
+    }
+
+    // Extract group conversation ID (`c_id`) from the URL
+    conversationIDStr := ps.ByName("c_id")
+    conversationID, err := strconv.Atoi(conversationIDStr)
+    if err != nil || conversationID <= 0 {
+        http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
+        return
+    }
+
+    // Parse request body to get the list of usernames to add
+    var input struct {
+        Usernames []string `json:"usernames"`  // List of usernames to add
+    }
+    err = json.NewDecoder(r.Body).Decode(&input)
+    if err != nil || len(input.Usernames) == 0 {
+        http.Error(w, "Invalid input: at least one username is required", http.StatusBadRequest)
+        return
+    }
+
+    // Check if the requester is part of the group
+    isMember, err := rt.db.IsUserInConversation(requesterID, conversationID)
+    if err != nil {
+        http.Error(w, "Error checking membership", http.StatusInternalServerError)
+        return
+    }
+    if !isMember {
+        http.Error(w, "You must be a member of the group to add others", http.StatusForbidden)
+        return
+    }
+
+    // Retrieve user IDs for each provided username
+    var addedUsers []string
+    for _, username := range input.Usernames {
+        user, err := rt.db.GetUser(username)
+        if err != nil {
+            if err == sql.ErrNoRows {
+                http.Error(w, "User not found: "+username, http.StatusNotFound)
+                return
+            }
+            http.Error(w, "Error retrieving user: "+username, http.StatusInternalServerError)
+            return
+        }
+
+        // Check if the user is already in the group
+        alreadyMember, err := rt.db.IsUserInConversation(user.ID, conversationID)
+        if err != nil {
+            http.Error(w, "Error checking user membership", http.StatusInternalServerError)
+            return
+        }
+        if alreadyMember {
+            continue  // Skip users already in the group
+        }
+
+        // Add user to the group
+        err = rt.db.AddUsersToConversation(user.ID, conversationID)
+        if err != nil {
+            http.Error(w, "Error adding user: "+username, http.StatusInternalServerError)
+            return
+        }
+
+        // Add to the response list
+        addedUsers = append(addedUsers, username)
+    }
+
+    // Respond with success and list of added users
+    w.WriteHeader(http.StatusOK)
+    _ = json.NewEncoder(w).Encode(map[string]interface{}{
+        "message":     "Users added to group successfully",
+        "c_id":        conversationID,
+        "added_users": addedUsers,
+    })
+}
+
+func (rt *_router) leaveGroup(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx *reqcontext.RequestContext) {
+    userID := ctx.UserID
+    groupIDStr := ps.ByName("c_id") // Extract group (conversation) ID
+
+    // Convert groupID to integer
+    groupID, err := strconv.Atoi(groupIDStr)
+    if err != nil || groupID <= 0 {
+        http.Error(w, "Invalid group ID", http.StatusBadRequest)
+        return
+    }
+
+    // ✅ Ensure this is a valid group conversation
+    isGroup, err := rt.db.IsConversationGroup(groupID)
+    if err != nil {
+        http.Error(w, "Error checking group type", http.StatusInternalServerError)
+        return
+    }
+    if !isGroup {
+        http.Error(w, "This conversation is not a group", http.StatusBadRequest)
+        return
+    }
+
+    // ✅ Check if the user is a member of the group
+    isMember, err := rt.db.IsUserInConversation(userID, groupID)
+    if err != nil {
+        http.Error(w, "Error checking user membership", http.StatusInternalServerError)
+        return
+    }
+    if !isMember {
+        http.Error(w, "User is not part of this group", http.StatusForbidden)
+        return
+    }
+
+    // ✅ Remove the user from the group
+    err = rt.db.RemoveUserFromGroup(userID, groupID)
+    if err != nil {
+        http.Error(w, "Error leaving the group", http.StatusInternalServerError)
+        return
+    }
+
+    // ✅ Check if the group is now empty
+    remainingMembers, err := rt.db.GetGroupMemberCount(groupID)
+    if err != nil {
+        http.Error(w, "Error checking remaining group members", http.StatusInternalServerError)
+        return
+    }
+
+    // ✅ If no members are left, delete the group (optional)
+    if remainingMembers == 0 {
+        err = rt.db.DeleteGroup(groupID)
+        if err != nil {
+            http.Error(w, "Error deleting empty group", http.StatusInternalServerError)
+            return
+        }
+    }
+
+    // ✅ Respond with success
+    w.WriteHeader(http.StatusOK)
+    _ = json.NewEncoder(w).Encode(map[string]string{"message": "Successfully left the group"})
+}

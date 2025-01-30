@@ -52,6 +52,11 @@ type AppDatabase interface {
 	GetConversationById(conversationID int) (conversation Conversation, err error)
 	ConversationExists(senderID string, recipientID string) (bool, error)
 	GetMyConversations_db(userID string) ([]ConversationInfo, error)
+	RemoveUserFromGroup(userID string, groupID int) error
+	GetGroupMemberCount(groupID int) (int, error)
+	DeleteGroup(groupID int) error
+	IsConversationGroup(conversationID int) (bool, error)
+	
 	// Message-related methods
 	SendMessage(conversationID int, senderID string, content string) error
 	IsUserInConversation(userID string, conversationID int) (bool, error)
