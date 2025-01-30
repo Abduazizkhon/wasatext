@@ -23,6 +23,11 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.POST("/groups", rt.wrap(rt.createGroup))
 	rt.router.POST("/groups/:c_id/members", rt.wrap(rt.addToGroup))
 	rt.router.DELETE("/groups/:c_id/leave", rt.wrap(rt.leaveGroup))
+	rt.router.PUT("/groups/:c_id/name", rt.wrap(rt.setGroupName))
+	rt.router.PUT("/conversations/:c_id/set-group-photo", rt.wrap(rt.setGroupPhoto))
+	rt.router.POST("/conversations/:conversation_id/messages/:message_id/comments", rt.wrap(rt.commentMessage))
+	rt.router.DELETE("/conversations/:conversation_id/messages/:message_id/comments/:comment_id", rt.wrap(rt.uncommentMessage))
+
 
 	// rt.router.POST("/conversations/:c_id/messages", rt.wrap(rt.sendMessage))// Send message to an existing conversation
 	// rt.router.GET("/users/:id/conversations/:c_id", rt.getConversation)

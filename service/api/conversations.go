@@ -8,6 +8,10 @@ import (
 
 	"github.com/Abduazizkhon/wasatext/service/api/reqcontext"
 	"github.com/julienschmidt/httprouter"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 func (rt *_router) getMyConversations(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
@@ -278,73 +282,72 @@ func (rt *_router) getMessages(w http.ResponseWriter, r *http.Request, ps httpro
 }
 
 func (rt *_router) deleteMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-	// Log the request
-	context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
+    context.Logger.Info("Request received: DELETE message")
 
-	// Step 1: Extract conversation ID and message ID from the path parameters
-	conversationIDStr := ps.ByName("c_id")
-	conversationID, err := strconv.Atoi(conversationIDStr)
-	if err != nil || conversationID <= 0 {
-		context.Logger.WithError(err).Error("Invalid conversation ID")
-		http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
-		return
-	}
+    // Extract conversation ID and message ID
+    conversationIDStr := ps.ByName("conversation_id")
+    messageIDStr := ps.ByName("message_id")
 
-	messageIDStr := ps.ByName("m_id")
-	messageID, err := strconv.Atoi(messageIDStr)
-	if err != nil || messageID <= 0 {
-		context.Logger.WithError(err).Error("Invalid message ID")
-		http.Error(w, "Invalid message ID", http.StatusBadRequest)
-		return
-	}
+    if conversationIDStr == "" || messageIDStr == "" {
+        context.Logger.Error("Missing conversation_id or message_id in path")
+        http.Error(w, "Invalid conversation ID or message ID", http.StatusBadRequest)
+        return
+    }
 
-	// Step 2: Extract the user ID from the request context (authenticated user)
-	userID := context.UserID
-	if userID == "" {
-		context.Logger.Error("User not authenticated")
-		http.Error(w, "User not authenticated", http.StatusUnauthorized)
-		return
-	}
+    conversationID, err := strconv.Atoi(conversationIDStr)
+    if err != nil || conversationID <= 0 {
+        context.Logger.WithError(err).Error("Invalid conversation ID")
+        http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
+        return
+    }
 
-	// Step 3: Validate if the user is part of the conversation
-	isMember, err := rt.db.IsUserInConversation(userID, conversationID)
-	if err != nil {
-		context.Logger.WithError(err).Error("Error checking if user is in conversation")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-	if !isMember {
-		context.Logger.Error("User is not part of the conversation")
-		http.Error(w, "User is not part of the conversation", http.StatusForbidden)
-		return
-	}
+    messageID, err := strconv.Atoi(messageIDStr)
+    if err != nil || messageID <= 0 {
+        context.Logger.WithError(err).Error("Invalid message ID")
+        http.Error(w, "Invalid message ID", http.StatusBadRequest)
+        return
+    }
 
-	// Step 4: Validate if the message belongs to the user
-	isMessageOwner, err := rt.db.IsMessageOwner(userID, messageID)
-	if err != nil {
-		context.Logger.WithError(err).Error("Error checking if user owns the message")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-	if !isMessageOwner {
-		context.Logger.Error("User does not own the message")
-		http.Error(w, "User does not own the message", http.StatusForbidden)
-		return
-	}
+    userID := context.UserID
+    if userID == "" {
+        context.Logger.Error("User not authenticated")
+        http.Error(w, "User not authenticated", http.StatusUnauthorized)
+        return
+    }
 
-	// Step 5: Delete the message
-	err = rt.db.DeleteMessage(messageID)
-	if err != nil {
-		context.Logger.WithError(err).Error("Error deleting message")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
+    // ✅ Ensure the message exists
+    exists, err := rt.db.DoesMessageExist(messageID)
+    if err != nil {
+        context.Logger.WithError(err).Error("Error checking message existence")
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
+        return
+    }
+    if !exists {
+        context.Logger.Error("Message not found")
+        http.Error(w, "Message not found", http.StatusNotFound)
+        return
+    }
 
-	// Step 6: Respond with success
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"message": "Message deleted successfully",
-	})
+    // ✅ Convert comments to normal messages before deleting
+    err = rt.db.ConvertCommentsToMessages(messageID, conversationID)
+    if err != nil {
+        context.Logger.WithError(err).Error("Error converting comments to messages")
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
+        return
+    }
+
+    // ✅ Delete the message
+    err = rt.db.DeleteMessage(messageID)
+    if err != nil {
+        context.Logger.WithError(err).Error("Error deleting message")
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
+        return
+    }
+
+    w.WriteHeader(http.StatusOK)
+    _ = json.NewEncoder(w).Encode(map[string]string{
+        "message": "Message deleted successfully, comments converted to normal messages",
+    })
 }
 
 func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
@@ -651,4 +654,362 @@ func (rt *_router) leaveGroup(w http.ResponseWriter, r *http.Request, ps httprou
     // ✅ Respond with success
     w.WriteHeader(http.StatusOK)
     _ = json.NewEncoder(w).Encode(map[string]string{"message": "Successfully left the group"})
+}
+
+func (rt *_router) setGroupName(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
+    userID := context.UserID // ✅ Get authenticated user
+    if userID == "" {
+        http.Error(w, "User not authenticated", http.StatusUnauthorized)
+        return
+    }
+
+    // ✅ Extract group ID from URL
+    groupIDStr := ps.ByName("c_id")
+    groupID, err := strconv.Atoi(groupIDStr)
+    if err != nil || groupID <= 0 {
+        http.Error(w, "Invalid group ID", http.StatusBadRequest)
+        return
+    }
+
+    // ✅ Parse request body to get new group name
+    var input struct {
+        NewName string `json:"new_name"`
+    }
+    err = json.NewDecoder(r.Body).Decode(&input)
+    if err != nil || input.NewName == "" {
+        http.Error(w, "Invalid input: new_name is required", http.StatusBadRequest)
+        return
+    }
+
+    // ✅ Check if the conversation is a group
+    isGroup, err := rt.db.IsConversationGroup(groupID)
+    if err != nil {
+        http.Error(w, "Error checking group type", http.StatusInternalServerError)
+        return
+    }
+    if !isGroup {
+        http.Error(w, "This conversation is not a group", http.StatusBadRequest)
+        return
+    }
+
+    // ✅ Check if the user is a member of the group
+    isMember, err := rt.db.IsUserInConversation(userID, groupID)
+    if err != nil {
+        http.Error(w, "Error checking user membership", http.StatusInternalServerError)
+        return
+    }
+    if !isMember {
+        http.Error(w, "User is not part of this group", http.StatusForbidden)
+        return
+    }
+
+    // ✅ Check if the new group name is already taken
+    nameExists, err := rt.db.GroupNameExists(input.NewName)
+    if err != nil {
+        http.Error(w, "Error checking group name availability", http.StatusInternalServerError)
+        return
+    }
+    if nameExists {
+        http.Error(w, "A group with this name already exists", http.StatusConflict)
+        return
+    }
+
+    // ✅ Update the group name
+    err = rt.db.UpdateGroupName(groupID, input.NewName)
+    if err != nil {
+        http.Error(w, "Error updating group name", http.StatusInternalServerError)
+        return
+    }
+
+    // ✅ Respond with success
+    w.WriteHeader(http.StatusOK)
+    _ = json.NewEncoder(w).Encode(map[string]string{
+        "message":    "Group name updated successfully",
+        "group_id":   groupIDStr,
+        "new_name":   input.NewName,
+    })
+}
+
+func (rt *_router) setGroupPhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx *reqcontext.RequestContext) {
+	// Extract authenticated user ID
+	userID := ctx.UserID
+	if userID == "" {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract group (conversation) ID
+	groupIDStr := ps.ByName("c_id")
+	groupID, err := strconv.Atoi(groupIDStr)
+	if err != nil || groupID <= 0 {
+		http.Error(w, "Invalid group ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the conversation is a group
+	isGroup, err := rt.db.IsConversationGroup(groupID)
+	if err != nil {
+		http.Error(w, "Error checking conversation type", http.StatusInternalServerError)
+		return
+	}
+	if !isGroup {
+		http.Error(w, "This conversation is not a group", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the user is a member of the group
+	isMember, err := rt.db.IsUserInConversation(userID, groupID)
+	if err != nil {
+		http.Error(w, "Error checking user membership", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "User is not part of this group", http.StatusForbidden)
+		return
+	}
+
+	// Parse the uploaded file
+	file, header, err := r.FormFile("photo")
+	if err != nil {
+		http.Error(w, "Invalid file upload", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Validate the file extension
+	fileExt := strings.ToLower(filepath.Ext(header.Filename))
+	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true}
+	if !allowedExts[fileExt] {
+		http.Error(w, "Invalid file type", http.StatusBadRequest)
+		return
+	}
+
+	// Ensure upload directory exists
+	uploadDir := "webui/public/uploads"
+	_ = os.MkdirAll(uploadDir, os.ModePerm)
+
+	// Generate new filename using the group ID
+	fileName := "group_" + strconv.Itoa(groupID) + fileExt
+	filePath := filepath.Join(uploadDir, fileName)
+
+	// Save the file
+	out, err := os.Create(filePath)
+	if err != nil {
+		http.Error(w, "Failed to save image", http.StatusInternalServerError)
+		return
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, file)
+	if err != nil {
+		http.Error(w, "Failed to save image", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate the correct photo URL for the frontend
+	photoURL := "/uploads/" + fileName
+
+	// Update the group's profile photo in the database
+	err = rt.db.UpdateGroupPhoto(groupID, photoURL)
+	if err != nil {
+		http.Error(w, "Failed to update group photo", http.StatusInternalServerError)
+		return
+	}
+
+	// ✅ Respond with the updated group photo URL
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"message": "Group photo updated successfully",
+		"photo":   photoURL,
+	})
+}
+
+func (rt *_router) commentMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
+	// Extract authenticated user ID
+	userID := context.UserID
+	if userID == "" {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract conversation ID
+	conversationIDStr := ps.ByName("conversation_id")
+	conversationID, err := strconv.Atoi(conversationIDStr)
+	if err != nil || conversationID <= 0 {
+		http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
+		return
+	}
+
+	// Extract message ID (the message being commented on)
+	messageIDStr := ps.ByName("message_id")
+	messageID, err := strconv.Atoi(messageIDStr)
+	if err != nil || messageID <= 0 {
+		http.Error(w, "Invalid message ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check if the user is a member of the conversation
+	isMember, err := rt.db.IsUserInConversation(userID, conversationID)
+	if err != nil {
+		http.Error(w, "Error checking user membership", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "User is not part of this conversation", http.StatusForbidden)
+		return
+	}
+
+	// Handle file uploads (photo or GIF)
+	file, header, err := r.FormFile("file")
+	var contentType, content string
+	if err == nil { // File is uploaded
+		defer file.Close()
+
+		// Validate file type
+		fileExt := strings.ToLower(filepath.Ext(header.Filename))
+		allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true}
+		if !allowedExts[fileExt] {
+			http.Error(w, "Invalid file type", http.StatusBadRequest)
+			return
+		}
+
+		// Ensure uploads directory exists
+		uploadDir := "webui/public/uploads"
+		_ = os.MkdirAll(uploadDir, os.ModePerm)
+
+		// Generate unique filename
+		fileName := userID + "_" + strconv.Itoa(messageID) + fileExt
+		filePath := filepath.Join(uploadDir, fileName)
+
+		// Save file
+		out, err := os.Create(filePath)
+		if err != nil {
+			http.Error(w, "Failed to save file", http.StatusInternalServerError)
+			return
+		}
+		defer out.Close()
+
+		_, err = io.Copy(out, file)
+		if err != nil {
+			http.Error(w, "Failed to save file", http.StatusInternalServerError)
+			return
+		}
+
+		// Set contentType and content for DB
+		if fileExt == ".gif" {
+			contentType = "gif"
+		} else {
+			contentType = "photo"
+		}
+		content = "/uploads/" + fileName // ✅ Store relative file path
+	} else {
+		// Parse request body for text or emoji comment
+		var input struct {
+			ContentType string `json:"content_type"` // "text", "emoji"
+			Content     string `json:"content"`
+		}
+		err = json.NewDecoder(r.Body).Decode(&input)
+		if err != nil || input.ContentType == "" || input.Content == "" {
+			http.Error(w, "Invalid input: content_type and content are required", http.StatusBadRequest)
+			return
+		}
+		contentType = input.ContentType
+		content = input.Content
+	}
+
+	// ✅ Check if the commented message still exists
+	exists, err := rt.db.DoesMessageExist(messageID)
+	if err != nil {
+		http.Error(w, "Error checking message existence", http.StatusInternalServerError)
+		return
+	}
+
+	// ✅ If message is deleted, comment becomes a normal message
+	if !exists {
+		err = rt.db.SendMessageFull(conversationID, userID, content)
+		if err != nil {
+			http.Error(w, "Error sending message", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"message": "Original message deleted. Comment added as normal message.",
+		})
+		return
+	}
+
+	// ✅ If message exists, add a comment linked to the message
+	err = rt.db.CommentOnMessage(messageID, userID, contentType, content)
+	if err != nil {
+		http.Error(w, "Error commenting on message", http.StatusInternalServerError)
+		return
+	}
+
+	// ✅ Respond with success
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"message":      "Comment added successfully",
+		"message_id":   strconv.Itoa(messageID),
+		"content_type": contentType,
+		"content":      content,
+	})
+}
+
+func (rt *_router) uncommentMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
+	// Extract user ID
+	userID := context.UserID
+	if userID == "" {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	// Extract parameters from URL
+	conversationIDStr := ps.ByName("conversation_id")
+	messageIDStr := ps.ByName("message_id")
+	commentIDStr := ps.ByName("comment_id")
+
+	conversationID, err1 := strconv.Atoi(conversationIDStr)
+	messageID, err2 := strconv.Atoi(messageIDStr)
+	commentID, err3 := strconv.Atoi(commentIDStr)
+
+	if err1 != nil || err2 != nil || err3 != nil || conversationID <= 0 || messageID <= 0 || commentID <= 0 {
+		http.Error(w, "Invalid conversation, message, or comment ID", http.StatusBadRequest)
+		return
+	}
+
+	// ✅ Check if the user is a member of the conversation
+	isMember, err := rt.db.IsUserInConversation(userID, conversationID)
+	if err != nil {
+		http.Error(w, "Error checking user membership", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "User is not part of this conversation", http.StatusForbidden)
+		return
+	}
+
+	// ✅ Check if the user is the owner of the comment
+	isOwner, err := rt.db.IsCommentOwner(userID, commentID)
+	if err != nil {
+		http.Error(w, "Error checking comment ownership", http.StatusInternalServerError)
+		return
+	}
+	if !isOwner {
+		http.Error(w, "User does not own this comment", http.StatusForbidden)
+		return
+	}
+
+	// ✅ Delete the comment
+	err = rt.db.DeleteComment(commentID)
+	if err != nil {
+		http.Error(w, "Error deleting comment", http.StatusInternalServerError)
+		return
+	}
+
+	// ✅ Respond with success
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"message": "Comment deleted successfully",
+	})
 }

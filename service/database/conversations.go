@@ -264,12 +264,9 @@ func (db *appdbimpl) IsMessageOwner(userID string, messageID int) (bool, error) 
 }
 
 func (db *appdbimpl) DeleteMessage(messageID int) error {
-	query := `
-        DELETE FROM messages 
-        WHERE id = ?;
-    `
-	_, err := db.c.Exec(query, messageID)
-	return err
+    query := `DELETE FROM messages WHERE id = ?;`
+    _, err := db.c.Exec(query, messageID)
+    return err
 }
 
 func (db *appdbimpl) GetMessageContent(messageID int) (string, error) {
@@ -329,4 +326,130 @@ func (db *appdbimpl) IsConversationGroup(conversationID int) (bool, error) {
 		return false, err
 	}
 	return isGroup, nil
+}
+
+// ✅ Check if a group with the given name already exists
+func (db *appdbimpl) GroupNameExists(name string) (bool, error) {
+	query := `SELECT COUNT(*) FROM conversations WHERE is_group = TRUE AND name = ?;`
+	var count int
+	err := db.c.QueryRow(query, name).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// ✅ Update the name of a group conversation
+func (db *appdbimpl) UpdateGroupName(groupID int, newName string) error {
+	query := `UPDATE conversations SET name = ? WHERE id = ? AND is_group = TRUE;`
+	_, err := db.c.Exec(query, newName, groupID)
+	return err
+}
+
+// ✅ Update the group photo
+func (db *appdbimpl) UpdateGroupPhoto(groupID int, photoPath string) error {
+	query := `UPDATE conversations SET photo = ? WHERE id = ? AND is_group = TRUE;`
+	_, err := db.c.Exec(query, photoPath, groupID)
+	return err
+}
+
+// Check if a message exists
+func (db *appdbimpl) DoesMessageExist(messageID int) (bool, error) {
+    query := `SELECT COUNT(*) FROM messages WHERE id = ?;`
+    var count int
+    err := db.c.QueryRow(query, messageID).Scan(&count)
+    if err != nil {
+        return false, err
+    }
+    return count > 0, nil
+}
+
+// Add a comment to a message
+func (db *appdbimpl) CommentOnMessage(messageID int, userID string, contentType string, content string) error {
+	query := `
+        INSERT INTO message_comments (message_id, user_id, content_type, content, timestamp)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP);
+    `
+	_, err := db.c.Exec(query, messageID, userID, contentType, content)
+	return err
+}
+
+func (db *appdbimpl) DoesConversationExist(conversationID int) (bool, error) {
+    query := `SELECT COUNT(*) FROM conversations WHERE id = ?;`
+    var count int
+    err := db.c.QueryRow(query, conversationID).Scan(&count)
+    if err != nil {
+        return false, err
+    }
+    return count > 0, nil
+}
+
+func (db *appdbimpl) ConvertCommentsToMessages(messageID int, conversationID int) error {
+    querySelect := `
+        SELECT user_id, content_type, content FROM message_comments WHERE message_id = ?;
+    `
+    
+    // Fetch comments first
+    rows, err := db.c.Query(querySelect, messageID)
+    if err != nil {
+        return err
+    }
+    
+    // Store comments in memory before closing rows
+    var comments []struct {
+        UserID      string
+        ContentType string
+        Content     string
+    }
+
+    for rows.Next() {
+        var comment struct {
+            UserID      string
+            ContentType string
+            Content     string
+        }
+        if err := rows.Scan(&comment.UserID, &comment.ContentType, &comment.Content); err != nil {
+            rows.Close() // Ensure we close before returning an error
+            return err
+        }
+        comments = append(comments, comment)
+    }
+    
+    rows.Close() // ✅ Properly close before inserting new messages
+
+    // Insert each comment as a new message
+    for _, comment := range comments {
+        queryInsert := `
+            INSERT INTO messages (conversation_id, sender, content, datetime, status)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'comment-converted');
+        `
+        _, err = db.c.Exec(queryInsert, conversationID, comment.UserID, comment.Content)
+        if err != nil {
+            return err
+        }
+    }
+
+    // Finally, delete comments from message_comments
+    queryDelete := `DELETE FROM message_comments WHERE message_id = ?;`
+    _, err = db.c.Exec(queryDelete, messageID)
+    
+    return err
+}
+
+// ✅ Check if a user is the owner of a comment
+func (db *appdbimpl) IsCommentOwner(userID string, commentID int) (bool, error) {
+	query := `SELECT COUNT(*) FROM message_comments WHERE id = ? AND user_id = ?;`
+	var count int
+	err := db.c.QueryRow(query, commentID, userID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// ✅ Delete a comment
+func (db *appdbimpl) DeleteComment(commentID int) error {
+	query := `DELETE FROM message_comments WHERE id = ?;`
+	_, err := db.c.Exec(query, commentID)
+	return err
 }

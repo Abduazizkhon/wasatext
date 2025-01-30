@@ -56,7 +56,9 @@ type AppDatabase interface {
 	GetGroupMemberCount(groupID int) (int, error)
 	DeleteGroup(groupID int) error
 	IsConversationGroup(conversationID int) (bool, error)
-	
+	UpdateGroupName(groupID int, newName string) error
+	GroupNameExists(name string) (bool, error)
+	DoesConversationExist(conversationID int) (bool, error)
 	// Message-related methods
 	SendMessage(conversationID int, senderID string, content string) error
 	IsUserInConversation(userID string, conversationID int) (bool, error)
@@ -66,6 +68,12 @@ type AppDatabase interface {
 	DeleteMessage(messageID int) error
 	GetMessageContent(messageID int) (string, error)
 	ForwardMessage(targetConversationID int, senderID string, content string) error
+	UpdateGroupPhoto(groupID int, photoPath string) error
+	DoesMessageExist(messageID int) (bool, error)
+	CommentOnMessage(messageID int, userID string, contentType string, content string) error
+	ConvertCommentsToMessages(messageID int, conversationID int) error
+	IsCommentOwner(userID string, commentID int) (bool, error)
+	DeleteComment(commentID int) error
 
 	// User updates
 	UpdateUserName(id string, newname string) (err error)
@@ -141,6 +149,16 @@ func createDatabase(db *sql.DB) error {
 
 
 
+		);`,
+		`CREATE TABLE IF NOT EXISTS message_comments (
+			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+			message_id INTEGER NOT NULL,
+			user_id VARCHAR(64) NOT NULL,
+			content_type VARCHAR(10) CHECK (content_type IN ('text', 'emoji', 'photo', 'gif')) NOT NULL,
+			content TEXT NOT NULL,
+			timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(message_id) REFERENCES messages(id),
+			FOREIGN KEY(user_id) REFERENCES users(id)
 		);`,
 	}
 	for t := 0; t < len(tables); t++ {
