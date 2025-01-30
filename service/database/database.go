@@ -34,6 +34,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
+	"mime/multipart"
+
 )
 
 // AppDatabase is the high level interface for the DB
@@ -74,6 +77,9 @@ type AppDatabase interface {
 	ConvertCommentsToMessages(messageID int, conversationID int) error
 	IsCommentOwner(userID string, commentID int) (bool, error)
 	DeleteComment(commentID int) error
+	SendMessageWithType(conversationID int, senderID string, contentType string, content string) error
+	SendMessageWithMedia(conversationID int, senderID string, contentType string, content string) error
+	SaveUploadedFile(file io.Reader, header *multipart.FileHeader, userID string) (string, string, error)
 
 	// User updates
 	UpdateUserName(id string, newname string) (err error)
@@ -140,15 +146,13 @@ func createDatabase(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS messages(
 			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
 			datetime TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			content  TEXT NOT NULL,
-			sender	 INTEGER NOT NULL,
-			conversation_id	 INTEGER NOT NULL,
-			status VARCHAR(10) DEFAULT'sent',
+			content TEXT NOT NULL,
+			content_type TEXT DEFAULT 'text',  -- ✅ New column to store message type
+			sender INTEGER NOT NULL,
+			conversation_id INTEGER NOT NULL,
+			status VARCHAR(10) DEFAULT 'sent',
 			FOREIGN KEY(sender) REFERENCES users(id),
-			FOREIGN KEY(conversation_id) REFERENCES conversation(id)
-
-
-
+			FOREIGN KEY(conversation_id) REFERENCES conversations(id)
 		);`,
 		`CREATE TABLE IF NOT EXISTS message_comments (
 			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

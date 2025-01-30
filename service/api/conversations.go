@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func (rt *_router) getMyConversations(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
@@ -52,15 +53,14 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
-	// Parse request body
-	var input struct {
-		RecipientID string `json:"recipient_id"`
-		Content     string `json:"content"`
+	// Extract recipient ID from form-data or query params
+	recipientID := r.FormValue("recipient_id")
+	if recipientID == "" {
+		recipientID = r.URL.Query().Get("recipient_id") // Fallback
 	}
-	err := json.NewDecoder(r.Body).Decode(&input)
-	if err != nil || input.RecipientID == "" || input.Content == "" {
-		context.Logger.WithError(err).Error("Invalid input: recipient_id and content are required")
-		http.Error(w, "Invalid input: recipient_id and content are required", http.StatusBadRequest)
+	if recipientID == "" {
+		context.Logger.Error("Recipient ID is required")
+		http.Error(w, "Recipient ID is required", http.StatusBadRequest)
 		return
 	}
 
@@ -78,7 +78,7 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 	}
 
 	// Validate recipient
-	recipient, err := rt.db.GetUserId(input.RecipientID)
+	recipient, err := rt.db.GetUserId(recipientID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			context.Logger.WithError(err).Error("Recipient not found")
@@ -91,7 +91,7 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 	}
 
 	// ✅ Check if a private conversation already exists
-	exists, err := rt.db.ConversationExists(senderID, input.RecipientID)
+	exists, err := rt.db.ConversationExists(senderID, recipientID)
 	if err != nil {
 		context.Logger.WithError(err).Error("Error checking for existing conversation")
 		http.Error(w, "Internal server error: failed to check conversation", http.StatusInternalServerError)
@@ -127,8 +127,33 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
+	// ✅ Handle file uploads (photo or GIF)
+	file, header, err := r.FormFile("file")
+	var contentType, content string
+	if err == nil { // File is uploaded
+		defer file.Close()
+
+		// Save the file and get path & type
+		contentType, content, err = rt.db.SaveUploadedFile(file, header, senderID)
+		if err != nil {
+			context.Logger.WithError(err).Error("Failed to save uploaded file")
+			http.Error(w, "Failed to save uploaded file", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// Parse request body for text messages
+		contentType = r.FormValue("content_type")
+		content = r.FormValue("content")
+
+		if contentType == "" || content == "" {
+			context.Logger.Error("Invalid input: content_type and content are required")
+			http.Error(w, "Invalid input: content_type and content are required", http.StatusBadRequest)
+			return
+		}
+	}
+
 	// ✅ Send the first message
-	err = rt.db.SendMessage(newConvo.ID, sender.ID, input.Content)
+	err = rt.db.SendMessageWithMedia(newConvo.ID, sender.ID, contentType, content)
 	if err != nil {
 		context.Logger.WithError(err).Error("Error sending message")
 		http.Error(w, "Error sending message", http.StatusInternalServerError)
@@ -173,67 +198,108 @@ func (rt *_router) getConversation(w http.ResponseWriter, r *http.Request, ps ht
 }
 
 func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-	// Log the request
-	context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
+    context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
 
-	// Step 1: Extract conversation ID from the path
-	conversationIDStr := ps.ByName("conversation_id") // ✅ Fix: Use correct path parameter name
-	conversationID, err := strconv.Atoi(conversationIDStr)
-	if err != nil || conversationID <= 0 {
-		context.Logger.WithError(err).Error("Invalid conversation ID")
-		http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
-		return
-	}
-	context.Logger.Infof("Extracted conversation_id: %d", conversationID)
+    // Extract conversation ID
+    conversationIDStr := ps.ByName("conversation_id")
+    conversationID, err := strconv.Atoi(conversationIDStr)
+    if err != nil || conversationID <= 0 {
+        context.Logger.WithError(err).Error("Invalid conversation ID")
+        http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
+        return
+    }
+    context.Logger.Infof("Extracted conversation_id: %d", conversationID)
 
-	// Step 2: Extract sender ID from the request context (authenticated user)
-	senderID := context.UserID
-	if senderID == "" {
-		context.Logger.Error("Sender ID is required")
-		http.Error(w, "Sender ID is required", http.StatusUnauthorized)
-		return
-	}
-	context.Logger.Infof("Extracted sender_id: %s", senderID)
+    // Extract sender ID (authenticated user)
+    senderID := context.UserID
+    if senderID == "" {
+        context.Logger.Error("Sender ID is required")
+        http.Error(w, "Sender ID is required", http.StatusUnauthorized)
+        return
+    }
+    context.Logger.Infof("Extracted sender_id: %s", senderID)
 
-	// Step 3: Parse the request body to get the message content
-	var input struct {
-		Content string `json:"content"` // Message content
-	}
-	err = json.NewDecoder(r.Body).Decode(&input)
-	if err != nil || input.Content == "" {
-		context.Logger.WithError(err).Error("Invalid input: content is required")
-		http.Error(w, "Invalid input: content is required", http.StatusBadRequest)
-		return
-	}
-	context.Logger.Infof("Parsed input: content=%s", input.Content)
+    // Ensure the sender is a participant in the conversation
+    isMember, err := rt.db.IsUserInConversation(senderID, conversationID)
+    if err != nil {
+        context.Logger.WithError(err).Error("Error checking if user is in conversation")
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
+        return
+    }
+    if !isMember {
+        context.Logger.Error("Sender is not part of the conversation")
+        http.Error(w, "Sender is not part of the conversation", http.StatusForbidden)
+        return
+    }
 
-	// Step 4: Validate if the sender is part of the conversation
-	isMember, err := rt.db.IsUserInConversation(senderID, conversationID)
-	if err != nil {
-		context.Logger.WithError(err).Error("Error checking if user is in conversation")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-	if !isMember {
-		context.Logger.Error("Sender is not part of the conversation")
-		http.Error(w, "Sender is not part of the conversation", http.StatusForbidden)
-		return
-	}
+    var content, contentType string
+    file, header, fileErr := r.FormFile("file") // Check for file upload
 
-	// Step 5: Send the message to the database
-	err = rt.db.SendMessageFull(conversationID, senderID, input.Content)
-	if err != nil {
-		context.Logger.WithError(err).Error("Error sending message")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-	context.Logger.Info("Message sent successfully")
+    if fileErr == nil { // If a file is uploaded
+        defer file.Close()
 
-	// Step 6: Respond with success
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"message": "Message sent successfully",
-	})
+        // Validate file type
+        fileExt := strings.ToLower(filepath.Ext(header.Filename))
+        allowedExts := map[string]string{".jpg": "photo", ".jpeg": "photo", ".png": "photo", ".gif": "gif"}
+
+        fileType, valid := allowedExts[fileExt]
+        if !valid {
+            context.Logger.Error("Invalid file type")
+            http.Error(w, "Invalid file type", http.StatusBadRequest)
+            return
+        }
+
+        // Save the uploaded file
+        uploadDir := "webui/public/uploads"
+        os.MkdirAll(uploadDir, os.ModePerm)
+
+        // Generate unique filename
+        fileName := senderID + "_" + strconv.Itoa(int(time.Now().Unix())) + fileExt
+        filePath := filepath.Join(uploadDir, fileName)
+
+        out, err := os.Create(filePath)
+        if err != nil {
+            context.Logger.WithError(err).Error("Failed to save file")
+            http.Error(w, "Failed to save file", http.StatusInternalServerError)
+            return
+        }
+        defer out.Close()
+        _, err = io.Copy(out, file)
+        if err != nil {
+            context.Logger.WithError(err).Error("Failed to write file")
+            http.Error(w, "Failed to save file", http.StatusInternalServerError)
+            return
+        }
+
+        // Set message content as file path and contentType
+        content = "/uploads/" + fileName
+        contentType = fileType
+    } else {
+        // Handle text message
+        content = r.FormValue("content")
+        contentType = r.FormValue("content_type")
+
+        if content == "" || contentType == "" {
+            context.Logger.Error("Invalid input: content and content_type are required")
+            http.Error(w, "Invalid input: content and content_type are required", http.StatusBadRequest)
+            return
+        }
+    }
+
+    // Save message to database
+    err = rt.db.SendMessageWithType(conversationID, senderID, content, contentType)
+    if err != nil {
+        context.Logger.WithError(err).Error("Error saving message")
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
+        return
+    }
+
+    w.WriteHeader(http.StatusCreated)
+    _ = json.NewEncoder(w).Encode(map[string]string{
+        "message":      "Message sent successfully",
+        "content_type": contentType,
+        "content":      content,
+    })
 }
 
 func (rt *_router) getMessages(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {

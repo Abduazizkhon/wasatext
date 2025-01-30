@@ -2,6 +2,14 @@ package database
 
 import (
 	"database/sql"
+	"errors"
+	"io"
+	"mime/multipart" 
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // GetMyConversations_db retrieves all conversations for a specific user based on their UUID (id).
@@ -452,4 +460,65 @@ func (db *appdbimpl) DeleteComment(commentID int) error {
 	query := `DELETE FROM message_comments WHERE id = ?;`
 	_, err := db.c.Exec(query, commentID)
 	return err
+}
+
+
+
+func (db *appdbimpl) SendMessageWithType(conversationID int, senderID string, content string, contentType string) error {
+    query := `
+        INSERT INTO messages (conversation_id, sender, content, content_type, datetime, status)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'sent');
+    `
+    _, err := db.c.Exec(query, conversationID, senderID, content, contentType)
+    return err
+}
+
+func (db *appdbimpl) SendMessageWithMedia(conversationID int, senderID string, contentType string, content string) error {
+	query := `
+        INSERT INTO messages (conversation_id, sender, content, content_type, datetime, status)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'sent');
+    `
+	_, err := db.c.Exec(query, conversationID, senderID, content, contentType)
+	return err
+}
+
+// SaveUploadedFile saves an uploaded file (photo or GIF) and returns content type & file path
+func (db *appdbimpl) SaveUploadedFile(file io.Reader, header *multipart.FileHeader, userID string) (string, string, error) {
+	// Allowed file types
+	fileExt := strings.ToLower(filepath.Ext(header.Filename))
+	allowedExts := map[string]string{
+		".jpg":  "photo",
+		".jpeg": "photo",
+		".png":  "photo",
+		".gif":  "gif",
+	}
+
+	contentType, ok := allowedExts[fileExt]
+	if !ok {
+		return "", "", errors.New("invalid file type")
+	}
+
+	// Ensure uploads directory exists
+	uploadDir := "webui/public/uploads"
+	_ = os.MkdirAll(uploadDir, os.ModePerm)
+
+	// Generate unique filename (userID + timestamp)
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	fileName := userID + "_" + timestamp + fileExt
+	filePath := filepath.Join(uploadDir, fileName)
+
+	// Save file
+	out, err := os.Create(filePath)
+	if err != nil {
+		return "", "", err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, file)
+	if err != nil {
+		return "", "", err
+	}
+
+	// Return content type and file path
+	return contentType, "/uploads/" + fileName, nil
 }
