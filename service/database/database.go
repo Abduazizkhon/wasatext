@@ -51,7 +51,7 @@ type AppDatabase interface {
 	AddUsersToConversation(userID string, conversationID int) (err error)
 	GetConversationById(conversationID int) (conversation Conversation, err error)
 	ConversationExists(senderID string, recipientID string) (bool, error)
-	GetMyConversations_db(userID string) ([]ConversationInfo, error)
+	GetMyConversations_db(userID string) ([]Conversation, error)
 	RemoveUserFromGroup(userID string, groupID int) error
 	GetGroupMemberCount(groupID int) (int, error)
 	DeleteGroup(groupID int) error

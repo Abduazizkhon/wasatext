@@ -110,32 +110,41 @@ func (db *appdbimpl) ConversationExists(senderID string, recipientID string) (bo
         SELECT COUNT(*) 
         FROM convmembers cm1
         JOIN convmembers cm2 ON cm1.conversation_id = cm2.conversation_id
-        WHERE cm1.user_id = ? AND cm2.user_id = ?;
+        JOIN conversations c ON cm1.conversation_id = c.id
+        WHERE cm1.user_id = ? 
+        AND cm2.user_id = ? 
+        AND c.is_group = FALSE;
     `
+
 	var count int
 	err := db.c.QueryRow(query, senderID, recipientID).Scan(&count)
 	if err != nil {
-		return false, err
+		return false, err // Returning the error, so it gets logged in the caller function
 	}
+
 	return count > 0, nil
 }
 
 // GetMyConversations_db retrieves all conversations for a specific user.
-func (db *appdbimpl) GetMyConversations_db(userID string) ([]ConversationInfo, error) {
+func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error) {
 	query := `
         SELECT 
-            u.name AS other_user_name,
-            c.lastconvo
+            c.id, 
+            c.lastconvo, 
+            c.is_group, 
+            c.photo,
+            CASE 
+                WHEN c.is_group = TRUE THEN c.name 
+                ELSE (SELECT u.name FROM users u 
+                      JOIN convmembers cm ON u.id = cm.user_id 
+                      WHERE cm.conversation_id = c.id AND u.id != ? LIMIT 1)
+            END AS name
         FROM 
-            convmembers cm1
+            conversations c
         JOIN 
-            convmembers cm2 ON cm1.conversation_id = cm2.conversation_id
-        JOIN 
-            users u ON cm2.user_id = u.id
-        JOIN 
-            conversations c ON cm1.conversation_id = c.id
+            convmembers cm ON c.id = cm.conversation_id
         WHERE 
-            cm1.user_id = ? AND cm2.user_id != ?;
+            cm.user_id = ?;
     `
 	rows, err := db.c.Query(query, userID, userID)
 	if err != nil {
@@ -143,10 +152,10 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]ConversationInfo, e
 	}
 	defer rows.Close()
 
-	var conversations []ConversationInfo
+	var conversations []Conversation
 	for rows.Next() {
-		var convo ConversationInfo
-		err := rows.Scan(&convo.OtherUserName, &convo.LastConvo)
+		var convo Conversation
+		err := rows.Scan(&convo.ID, &convo.LastConvo, &convo.IsGroup, &convo.Photo, &convo.Name)
 		if err != nil {
 			return nil, err
 		}
