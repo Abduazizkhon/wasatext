@@ -154,6 +154,7 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error
         WHERE 
             cm.user_id = ?;
     `
+
 	rows, err := db.c.Query(query, userID, userID)
 	if err != nil {
 		return nil, err
@@ -167,6 +168,14 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error
 		if err != nil {
 			return nil, err
 		}
+
+		// ✅ Fix for photo field being a sql.NullString
+		if convo.Photo.Valid {
+			convo.Photo.String = "/uploads/" + convo.Photo.String
+		} else {
+			convo.Photo.String = "" // No profile picture available
+		}
+
 		conversations = append(conversations, convo)
 	}
 
@@ -176,7 +185,6 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error
 
 	return conversations, nil
 }
-
 // SendMessage inserts a new message into the database.
 func (db *appdbimpl) SendMessage(conversationID int, senderID string, content string) error {
 	query := `

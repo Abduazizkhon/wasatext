@@ -1,28 +1,21 @@
 <template>
-  <div class="conversations-container">
-    <h1>Conversations</h1>
+  <div class="chats-container">
+    <h1>Your Conversations</h1>
 
-    <div v-if="isLoading" class="loading">Loading...</div>
-    <div v-else>
-      <div v-if="conversations.length > 0">
-        <h2>Private Chats</h2>
-        <ul class="conversation-list">
-          <li v-for="convo in privateConversations" :key="convo.id" @click="openConversation(convo.id)">
-            <img v-if="convo.photo" :src="'http://localhost:3000' + convo.photo" alt="User Photo" class="profile-photo" />
-            <span>{{ convo.name }}</span>
-          </li>
-        </ul>
+    <div v-if="loading">Loading chats...</div>
 
-        <h2>Group Chats</h2>
-        <ul class="conversation-list">
-          <li v-for="convo in groupConversations" :key="convo.id" @click="openConversation(convo.id)">
-            <img v-if="convo.photo" :src="'http://localhost:3000' + convo.photo" alt="Group Photo" class="profile-photo" />
-            <span>{{ convo.name }}</span>
-          </li>
-        </ul>
-      </div>
-      <div v-else class="no-conversations">No conversations found.</div>
+    <div v-else-if="conversations.length === 0">
+      <p>No conversations yet.</p>
     </div>
+
+    <ul v-else>
+      <li v-for="chat in conversations" :key="chat.id" class="chat-item">
+        <RouterLink :to="`/chat/${chat.id}`" class="chat-link">
+          <img v-if="chat.photo" :src="chat.photo" alt="Chat Photo" class="chat-photo" />
+          <span>{{ chat.name }}</span>
+        </RouterLink>
+      </li>
+    </ul>
   </div>
 </template>
 
@@ -30,94 +23,76 @@
 import axios from "axios";
 
 export default {
-  name: "ConversationsView",
+  name: "ChatsView",
   data() {
     return {
       conversations: [],
-      isLoading: true,
-      isLoggedIn: false,
+      loading: true,
     };
   },
-  computed: {
-    privateConversations() {
-      return this.conversations.filter(convo => !convo.is_group);
-    },
-    groupConversations() {
-      return this.conversations.filter(convo => convo.is_group);
-    }
-  },
-  created() {
+  async created() {
     const token = localStorage.getItem("authToken");
     const userID = localStorage.getItem("userID");
 
     if (!token || !userID) {
-      this.$router.push("/"); // Redirect to login if not authenticated
+      console.warn("🚨 User not authenticated.");
       return;
     }
 
-    this.isLoggedIn = true;
-    this.fetchConversations(userID, token);
-  },
-  methods: {
-    async fetchConversations(userID, token) {
-      try {
-        const response = await axios.get(`http://localhost:3000/users/${userID}/conversations`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        this.conversations = response.data;
-      } catch (error) {
-        console.error("Error fetching conversations:", error);
-      } finally {
-        this.isLoading = false;
-      }
-    },
-    openConversation(conversationId) {
-      this.$router.push(`/conversations/${conversationId}`);
+    try {
+      console.log("🔍 Fetching user conversations...");
+      const response = await axios.get(`http://localhost:3000/users/${userID}/conversations`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      this.conversations = response.data.map(chat => ({
+        id: chat.id,
+        name: chat.name || "Unnamed Chat",
+        photo: chat.photo && chat.photo.Valid ? `http://localhost:3000${chat.photo.String}` : "/default-profile.png",
+      }));
+
+      console.log("✅ Conversations loaded:", this.conversations);
+    } catch (error) {
+      console.error("❌ Error fetching conversations:", error);
+    } finally {
+      this.loading = false;
     }
   }
 };
 </script>
 
 <style scoped>
-.conversations-container {
+.chats-container {
   text-align: center;
-  margin-top: 20px;
+  padding: 20px;
 }
 
-.loading {
-  font-size: 18px;
-  color: gray;
-}
-
-.no-conversations {
-  color: red;
-  font-weight: bold;
-}
-
-.conversation-list {
+.chat-item {
   list-style: none;
-  padding: 0;
+  margin: 10px 0;
 }
 
-.conversation-list li {
+.chat-link {
   display: flex;
   align-items: center;
+  gap: 10px;
   padding: 10px;
-  cursor: pointer;
-  border-bottom: 1px solid #ddd;
-  transition: background 0.3s;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #333;
+  background-color: #f9f9f9;
 }
 
-.conversation-list li:hover {
-  background: #f0f0f0;
+.chat-link:hover {
+  background-color: #e9ecef;
 }
 
-.profile-photo {
+.chat-photo {
   width: 40px;
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
-  margin-right: 10px;
   border: 2px solid #007bff;
 }
 </style>

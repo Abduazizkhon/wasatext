@@ -7,22 +7,14 @@ const isAuthenticated = ref(false);
 
 onMounted(() => {
   const token = localStorage.getItem("authToken");
-  isAuthenticated.value = !!token; // ✅ Check if token exists
+  isAuthenticated.value = !!token; // ✅ Checks login status
 });
 
 const logout = () => {
-  const userID = localStorage.getItem("userID");
-
-  // ✅ Keep profile photo but clear everything else
-  const profilePhoto = localStorage.getItem(`profilePhoto_${userID}`);
   localStorage.clear();
-  
-  if (profilePhoto) {
-    localStorage.setItem(`profilePhoto_${userID}`, profilePhoto);
-  }
-
   isAuthenticated.value = false;
-  router.push("/"); // Redirect to login
+  router.push("/login"); // ✅ Redirects to login
+  window.location.reload(); // 🚀 **Forces UI update**
 };
 </script>
 
@@ -35,30 +27,39 @@ const logout = () => {
 		<div class="row">
 			<nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
 				<div class="position-sticky pt-3 sidebar-sticky">
-					<h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted text-uppercase">
+					<h6 class="sidebar-heading px-3 mt-4 mb-1 text-muted text-uppercase">
 						<span>General</span>
 					</h6>
 					<ul class="nav flex-column">
 						<li class="nav-item">
 							<RouterLink to="/home" class="nav-link">Home</RouterLink>
 						</li>
-						<li v-if="isAuthenticated" class="nav-item">
-							<RouterLink to="/conversations" class="nav-link">Chats</RouterLink>
+						<li class="nav-item">
+							<RouterLink 
+								to="/conversations" 
+								class="nav-link" 
+								:class="{ disabled: !isAuthenticated }">
+								Chats
+							</RouterLink>
 						</li>
-						<li v-if="isAuthenticated" class="nav-item">
-							<RouterLink to="/groups" class="nav-link">Groups</RouterLink>
+						<li class="nav-item">
+							<RouterLink 
+								to="/groups" 
+								class="nav-link" 
+								:class="{ disabled: !isAuthenticated }">
+								Groups
+							</RouterLink>
+						</li>
+						<li class="nav-item">
+							<RouterLink to="/users/me/username" class="nav-link" :class="{ disabled: !isAuthenticated }">
+								Profile
+							</RouterLink>
+						</li>
+						<li v-if="!isAuthenticated" class="nav-item">
+							<RouterLink to="/login" class="nav-link">Login</RouterLink>
 						</li>
 						<li v-if="isAuthenticated" class="nav-item">
 							<button class="nav-link logout-button" @click="logout">Logout</button>
-						</li>
-					</ul>
-
-					<h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted text-uppercase">
-						<span>Secondary menu</span>
-					</h6>
-					<ul class="nav flex-column">
-						<li v-if="isAuthenticated" class="nav-item">
-							<RouterLink to="/users/me/username" class="nav-link">Profile</RouterLink>
 						</li>
 					</ul>
 				</div>
@@ -72,6 +73,10 @@ const logout = () => {
 </template>
 
 <style>
+.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
 .logout-button {
   background: none;
   border: none;

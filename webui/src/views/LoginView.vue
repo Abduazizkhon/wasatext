@@ -58,8 +58,11 @@ export default {
           throw new Error("Invalid login response");
         }
 
-        // ✅ Redirect to home page
-        this.$router.push("/home");
+        // ✅ FORCE UI UPDATE & REDIRECT
+        this.$router.push("/conversations").then(() => {
+          window.location.reload(); // 🔄 Forces UI refresh
+        });
+
       } catch (error) {
         this.errorMessage = error.response?.data?.error || "An error occurred.";
       }
@@ -67,3 +70,41 @@ export default {
   }
 };
 </script>
+
+<style scoped>
+.login-container {
+  text-align: center;
+  margin-top: 50px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+input {
+  display: block;
+  padding: 10px;
+  margin: 10px auto;
+  width: 250px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+button {
+  padding: 10px 20px;
+  background-color: blue;
+  color: white;
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+button:hover {
+  background-color: darkblue;
+}
+
+.error-message {
+  color: red;
+  margin-top: 10px;
+}
+</style>

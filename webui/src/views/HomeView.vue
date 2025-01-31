@@ -8,7 +8,6 @@
 
     <RouterLink to="/users/me/username" class="nav-button">Profile</RouterLink>
     <RouterLink to="/users/me/photo" class="photo-button">Upload Profile Photo</RouterLink>
-    <button class="logout-button" @click="logout">Logout</button>
   </div>
 </template>
 
@@ -27,55 +26,48 @@ export default {
     await this.fetchProfilePhoto();
   },
   methods: {
-	async fetchProfilePhoto() {
-	const token = localStorage.getItem("authToken");
-	const userID = localStorage.getItem("userID");
+    async fetchProfilePhoto() {
+      const token = localStorage.getItem("authToken");
+      const userID = localStorage.getItem("userID");
 
-	if (!userID || !token) {
-		console.warn("🚨 Missing user ID or token.");
-		return;
-	}
+      if (!userID || !token) {
+        console.warn("🚨 Missing user ID or token.");
+        return;
+      }
 
-	try {
-		console.log("🔍 Fetching profile photo from API...");
-		const response = await axios.get(`http://localhost:3000/users/${userID}`, {
-		headers: { Authorization: `Bearer ${token}` },
-		});
+      try {
+        console.log("🔍 Fetching profile photo from API...");
+        const response = await axios.get(`http://localhost:3000/users/${userID}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-		console.log("📝 Full API Response:", response.data); // 🚀 Debugging step
+        console.log("📝 Full API Response:", response.data); // 🚀 Debugging step
 
-		if (response.status === 404) {
-		console.error("🚨 User not found in database. Logging out.");
-		this.logout();
-		return;
-		}
+        if (response.status === 404) {
+          console.error("🚨 User not found in database.");
+          return;
+        }
 
-		if (response.data.photo) {
-		console.log("📸 Raw photo value from API:", response.data.photo); // 🚀 Debugging step
+        if (response.data.photo) {
+          console.log("📸 Raw photo value from API:", response.data.photo); // 🚀 Debugging step
 
-		if (typeof response.data.photo === "string") {
-			this.profilePhoto = `http://localhost:3000${response.data.photo}`;
-			localStorage.setItem(`profilePhoto_${userID}`, this.profilePhoto);
-			console.log("✅ Final profile photo URL:", this.profilePhoto);
-		} else {
-			console.error("❌ API photo format is incorrect (expected a string but got an object)");
-			console.log("🧐 Actual type:", typeof response.data.photo, "| Value:", response.data.photo);
-			this.profilePhoto = "";
-		}
-		} else {
-		console.warn("🚨 No profile photo found for user.");
-		this.profilePhoto = ""; // Default empty state
-		}
-	} catch (error) {
-		console.error("❌ Error fetching profile photo:", error);
-		this.profilePhoto = ""; // Prevent UI from breaking
-	}
-	},
-
-    logout() {
-      console.log("🚪 Logging out...");
-      localStorage.clear();
-      this.$router.push("/");
+          if (typeof response.data.photo === "string") {
+            this.profilePhoto = `http://localhost:3000${response.data.photo}`;
+            localStorage.setItem(`profilePhoto_${userID}`, this.profilePhoto);
+            console.log("✅ Final profile photo URL:", this.profilePhoto);
+          } else {
+            console.error("❌ API photo format is incorrect (expected a string but got an object)");
+            console.log("🧐 Actual type:", typeof response.data.photo, "| Value:", response.data.photo);
+            this.profilePhoto = "";
+          }
+        } else {
+          console.warn("🚨 No profile photo found for user.");
+          this.profilePhoto = ""; // Default empty state
+        }
+      } catch (error) {
+        console.error("❌ Error fetching profile photo:", error);
+        this.profilePhoto = ""; // Prevent UI from breaking
+      }
     }
   }
 };
@@ -107,18 +99,5 @@ export default {
   text-align: center;
   text-decoration: none;
   width: 200px;
-}
-
-.logout-button {
-  margin-top: 15px;
-  padding: 10px 20px;
-  background-color: red;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-.logout-button:hover {
-  background-color: darkred;
 }
 </style>
