@@ -3,7 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
-
+	"errors"
 	"github.com/gofrs/uuid"
 )
 
@@ -155,4 +155,36 @@ func (db *appdbimpl) UpdateUserPhoto(userID string, photoPath string) error {
 	query := `UPDATE users SET photo = ? WHERE id = ?;`
 	_, err := db.c.Exec(query, photoPath, userID)
 	return err
+}
+
+func GetUserByID(db *sql.DB, userID string) (*User, error) {
+	var user User
+
+	err := db.QueryRow("SELECT id, username, photo FROM users WHERE id = ?", userID).
+		Scan(&user.ID, &user.Username, &user.Photo)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.New("user not found")
+		}
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (db *appdbimpl) GetUserByID(userID string) (User, error) {
+	query := `SELECT id, name, photo FROM users WHERE id = ?;`
+	row := db.c.QueryRow(query, userID)
+
+	var user User
+	err := row.Scan(&user.ID, &user.Username, &user.Photo)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return User{}, sql.ErrNoRows
+		}
+		return User{}, err
+	}
+
+	return user, nil
 }

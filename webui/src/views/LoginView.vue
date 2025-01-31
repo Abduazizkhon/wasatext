@@ -44,11 +44,16 @@ export default {
           alert("Login successful!");
         }
 
-        // ✅ Store token and user info properly
         if (response.data.token && response.data.user) {
           localStorage.setItem("authToken", response.data.token);
           localStorage.setItem("username", response.data.user.username);
           localStorage.setItem("userID", response.data.user.id);
+
+          // ✅ Restore profile photo from localStorage if it exists
+          const profilePhoto = localStorage.getItem(`profilePhoto_${response.data.user.id}`);
+          if (profilePhoto) {
+            localStorage.setItem("profilePhoto", profilePhoto);
+          }
         } else {
           throw new Error("Invalid login response");
         }
@@ -58,54 +63,7 @@ export default {
       } catch (error) {
         this.errorMessage = error.response?.data?.error || "An error occurred.";
       }
-    },
-  },
+    }
+  }
 };
 </script>
-
-<style scoped>
-.login-container {
-  max-width: 400px;
-  margin: 0 auto;
-  padding: 20px;
-  text-align: center;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: bold;
-}
-
-input {
-  width: 100%;
-  padding: 10px;
-  font-size: 16px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-button {
-  width: 100%;
-  padding: 10px;
-  font-size: 16px;
-  color: #fff;
-  background-color: #007bff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.error-message {
-  margin-top: 20px;
-  color: red;
-  font-weight: bold;
-}
-</style>

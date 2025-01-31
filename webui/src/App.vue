@@ -1,17 +1,34 @@
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
-</script>
-<script>
-export default {}
+import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
+
+const router = useRouter();
+const isAuthenticated = ref(false);
+
+onMounted(() => {
+  const token = localStorage.getItem("authToken");
+  isAuthenticated.value = !!token; // ✅ Check if token exists
+});
+
+const logout = () => {
+  const userID = localStorage.getItem("userID");
+
+  // ✅ Keep profile photo but clear everything else
+  const profilePhoto = localStorage.getItem(`profilePhoto_${userID}`);
+  localStorage.clear();
+  
+  if (profilePhoto) {
+    localStorage.setItem(`profilePhoto_${userID}`, profilePhoto);
+  }
+
+  isAuthenticated.value = false;
+  router.push("/"); // Redirect to login
+};
 </script>
 
 <template>
-
 	<header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
 		<a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6" href="/">WASAText</a>
-		<button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
-			<span class="navbar-toggler-icon"></span>
-		</button>
 	</header>
 
 	<div class="container-fluid">
@@ -23,22 +40,16 @@ export default {}
 					</h6>
 					<ul class="nav flex-column">
 						<li class="nav-item">
-							<RouterLink to="/" class="nav-link">
-								<svg class="feather"><use href="/feather-sprite-v4.29.0.svg#home"/></svg>
-								Home
-							</RouterLink>
+							<RouterLink to="/home" class="nav-link">Home</RouterLink>
 						</li>
-						<li class="nav-item">
-							<RouterLink to="/link1" class="nav-link">
-								<svg class="feather"><use href="/feather-sprite-v4.29.0.svg#layout"/></svg>
-								Chats
-							</RouterLink>
+						<li v-if="isAuthenticated" class="nav-item">
+							<RouterLink to="/conversations" class="nav-link">Chats</RouterLink>
 						</li>
-						<li class="nav-item">
-							<RouterLink to="/link2" class="nav-link">
-								<svg class="feather"><use href="/feather-sprite-v4.29.0.svg#key"/></svg>
-								Groups
-							</RouterLink>
+						<li v-if="isAuthenticated" class="nav-item">
+							<RouterLink to="/groups" class="nav-link">Groups</RouterLink>
+						</li>
+						<li v-if="isAuthenticated" class="nav-item">
+							<button class="nav-link logout-button" @click="logout">Logout</button>
 						</li>
 					</ul>
 
@@ -46,11 +57,8 @@ export default {}
 						<span>Secondary menu</span>
 					</h6>
 					<ul class="nav flex-column">
-						<li class="nav-item">
-							<RouterLink to="/users/me/username">
-								<svg class="feather"><use href="/feather-sprite-v4.29.0.svg#file-text"/></svg>
-								Profile
-							</RouterLink>
+						<li v-if="isAuthenticated" class="nav-item">
+							<RouterLink to="/users/me/username" class="nav-link">Profile</RouterLink>
 						</li>
 					</ul>
 				</div>
@@ -64,4 +72,17 @@ export default {}
 </template>
 
 <style>
+.logout-button {
+  background: none;
+  border: none;
+  color: red;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 10px;
+  width: 100%;
+  text-align: left;
+}
+.logout-button:hover {
+  text-decoration: underline;
+}
 </style>

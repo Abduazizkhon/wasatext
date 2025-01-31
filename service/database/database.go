@@ -47,6 +47,7 @@ type AppDatabase interface {
 	GetUser(username string) (User, error)
 	GetUserId(id string) (User, error) // Fetch a user by ID (UUID)
 	UpdateUserPhoto(userID string, filePath string) error
+	GetUserByID(userID string) (User, error) // ✅ Add this function
 
 	// Conversation-related methods
 	// GetMyConversations_db(userID string) (conversations []Conversation, err error)
@@ -83,6 +84,7 @@ type AppDatabase interface {
 
 	// User updates
 	UpdateUserName(id string, newname string) (err error)
+
 
 	// Connection health
 	Ping() error

@@ -177,3 +177,38 @@ func (rt *_router) setMyPhoto(w http.ResponseWriter, r *http.Request, ps httprou
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"message": "Profile picture updated successfully", "photo": photoURL})
 }
+
+func (rt *_router) getUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
+    userID := ps.ByName("id")
+    if userID == "" {
+        http.Error(w, "User ID required", http.StatusBadRequest)
+        return
+    }
+
+    user, err := rt.db.GetUserId(userID)
+    if err != nil {
+        if err == sql.ErrNoRows {
+            http.Error(w, "User not found", http.StatusNotFound)
+            return
+        }
+        http.Error(w, "Error fetching user", http.StatusInternalServerError)
+        return
+    }
+
+    // ✅ Ensure `photo` is properly extracted as a string
+    var photoURL string
+    if user.Photo.Valid {
+        photoURL = user.Photo.String
+    } else {
+        photoURL = "" // Default if no photo is set
+    }
+
+    response := map[string]interface{}{
+        "id":       user.ID,
+        "username": user.Username,
+        "photo":    photoURL, // ✅ Now a plain string
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
+}
