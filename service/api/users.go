@@ -212,3 +212,34 @@ func (rt *_router) getUser(w http.ResponseWriter, r *http.Request, ps httprouter
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(response)
 }
+
+// This endpoint resolves the username to user ID
+func (rt *_router) getUserIDByUsername(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
+    username := ps.ByName("username")
+    if username == "" {
+        context.Logger.Error("Username is required")
+        http.Error(w, "Username is required", http.StatusBadRequest)
+        return
+    }
+
+    // Query the database to get the user ID by username
+    userID, err := rt.db.GetUserIDByUsername(username)
+    if err != nil {
+        if err == sql.ErrNoRows {
+            context.Logger.WithError(err).Error("User not found")
+            http.Error(w, "User not found", http.StatusNotFound)
+            return
+        }
+        context.Logger.WithError(err).Error("Error fetching user ID")
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
+        return
+    }
+
+    // Respond with the user ID
+    w.WriteHeader(http.StatusOK)
+    err = json.NewEncoder(w).Encode(map[string]string{"user_id": userID})
+    if err != nil {
+        context.Logger.WithError(err).Error("Error encoding response")
+        http.Error(w, "Error encoding response", http.StatusInternalServerError)
+    }
+}

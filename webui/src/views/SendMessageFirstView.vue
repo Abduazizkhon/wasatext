@@ -9,13 +9,13 @@
     <div v-else>
       <form @submit.prevent="submitForm">
         <div class="form-group">
-          <label for="recipient_id">Recipient ID</label>
+          <label for="recipient_username">Recipient Username</label>
           <input 
-            v-model="recipientID" 
+            v-model="recipientUsername" 
             type="text" 
-            id="recipient_id" 
+            id="recipient_username" 
             required
-            placeholder="Enter recipient's user ID"
+            placeholder="Enter recipient's username"
           />
         </div>
 
@@ -72,13 +72,13 @@ import axios from "axios";
 export default {
   data() {
     return {
-      recipientID: "",
-      content: "",
-      file: null,
-      messageType: "",  // This will hold 'text', 'image', or 'gif'
-      loading: false,
-      message: "",
-      messageClass: "", // success or error
+      recipientUsername: "", // Model for recipient's username
+      content: "", // Model for message content
+      file: null, // Model for the file (image/gif)
+      messageType: "", // This will hold 'text', 'image', or 'gif'
+      loading: false, // For loading state
+      message: "", // Success or error message
+      messageClass: "", // Class to apply success/error styling
     };
   },
   methods: {
@@ -97,13 +97,12 @@ export default {
       }
 
       const formData = new FormData();
-      formData.append("recipient_id", this.recipientID);
-      formData.append("content_type", this.messageType); // set message type
+      formData.append("recipient_username", this.recipientUsername); // Send recipient's username
+      formData.append("content_type", this.messageType); // Set message type
       formData.append("content", this.content); // Add text content
 
-      // Append the file if it exists (image or gif)
       if (this.file) {
-        formData.append("file", this.file);
+        formData.append("file", this.file); // Attach the file if selected
       }
 
       try {
@@ -118,12 +117,11 @@ export default {
           {
             headers: {
               Authorization: `Bearer ${token}`,
-              "Content-Type": "multipart/form-data", // Important for file uploads
+              "Content-Type": "multipart/form-data",
             },
           }
         );
 
-        // If successful, show success message with conversation ID
         this.loading = false;
         this.message = `Message sent successfully! Conversation ID: ${response.data.c_id}`;
         this.messageClass = "success";

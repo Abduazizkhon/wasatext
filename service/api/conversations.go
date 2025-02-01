@@ -45,10 +45,10 @@ func (rt *_router) getMyConversations(w http.ResponseWriter, r *http.Request, ps
     }
 }
 func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-	// Log request
+	// Log the request
 	context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
 
-	// Extract sender ID from path
+	// Extract sender ID from the path
 	senderID := ps.ByName("id")
 	if senderID == "" {
 		context.Logger.Error("Sender ID is required in the path")
@@ -56,14 +56,22 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
-	// Extract recipient ID from form-data or query params
-	recipientID := r.FormValue("recipient_id")
-	if recipientID == "" {
-		recipientID = r.URL.Query().Get("recipient_id") // Fallback
+	// Extract recipient username from the form data
+	recipientUsername := r.FormValue("recipient_username")
+	if recipientUsername == "" {
+		recipientUsername = r.URL.Query().Get("recipient_username") // Fallback
 	}
-	if recipientID == "" {
-		context.Logger.Error("Recipient ID is required")
-		http.Error(w, "Recipient ID is required", http.StatusBadRequest)
+	if recipientUsername == "" {
+		context.Logger.Error("Recipient username is required")
+		http.Error(w, "Recipient username is required", http.StatusBadRequest)
+		return
+	}
+
+	// Retrieve recipient user ID by username
+	recipientID, err := rt.db.GetUserIDByUsername(recipientUsername)
+	if err != nil {
+		context.Logger.WithError(err).Error("Recipient not found")
+		http.Error(w, "Recipient not found", http.StatusNotFound)
 		return
 	}
 
@@ -93,7 +101,7 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
-	// ✅ Check if a private conversation already exists
+	// Check if a private conversation already exists
 	exists, err := rt.db.ConversationExists(senderID, recipientID)
 	if err != nil {
 		context.Logger.WithError(err).Error("Error checking for existing conversation")
@@ -106,7 +114,7 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
-	// ✅ Create a new private conversation
+	// Create a new private conversation
 	newConvo, err := rt.db.CreateConversation_db(false, "", "")
 	if err != nil {
 		context.Logger.WithError(err).Error("Error creating conversation")
@@ -114,7 +122,7 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
-	// ✅ Add sender to the conversation
+	// Add sender to the conversation
 	err = rt.db.AddUsersToConversation(sender.ID, newConvo.ID)
 	if err != nil {
 		context.Logger.WithError(err).Error("Error adding sender to conversation")
@@ -122,7 +130,7 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
-	// ✅ Add recipient to the conversation
+	// Add recipient to the conversation
 	err = rt.db.AddUsersToConversation(recipient.ID, newConvo.ID)
 	if err != nil {
 		context.Logger.WithError(err).Error("Error adding recipient to conversation")
@@ -130,7 +138,7 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
-	// ✅ Handle file uploads (photo or GIF)
+	// Handle file uploads (photo or GIF)
 	file, header, err := r.FormFile("file")
 	var contentType, content string
 	if err == nil { // File is uploaded
@@ -155,7 +163,7 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 		}
 	}
 
-	// ✅ Send the first message
+	// Send the first message
 	err = rt.db.SendMessageWithMedia(newConvo.ID, sender.ID, contentType, content)
 	if err != nil {
 		context.Logger.WithError(err).Error("Error sending message")
@@ -163,14 +171,13 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 		return
 	}
 
-	// ✅ Respond with conversation ID
+	// Respond with conversation ID
 	w.WriteHeader(http.StatusCreated)
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "Message sent successfully",
 		"c_id":    newConvo.ID,
 	})
 }
-
 // update username of a user. Also change the name of that user in all convos
 
 func (rt *_router) getConversation(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context reqcontext.RequestContext) {

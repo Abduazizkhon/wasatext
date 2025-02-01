@@ -48,6 +48,7 @@ type AppDatabase interface {
 	GetUserId(id string) (User, error) // Fetch a user by ID (UUID)
 	UpdateUserPhoto(userID string, filePath string) error
 	GetUserByID(userID string) (User, error) // ✅ Add this function
+	GetUserIDByUsername(username string) (string, error)
 
 	// Conversation-related methods
 	// GetMyConversations_db(userID string) (conversations []Conversation, err error)
