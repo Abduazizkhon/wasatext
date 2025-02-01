@@ -11,17 +11,27 @@
     <ul v-else>
       <li v-for="chat in conversations" :key="chat.id" class="chat-item">
         <RouterLink :to="`/chat/${chat.id}`" class="chat-link">
-          <img 
-            v-if="chat.photo" 
-            :src="chat.photo" 
-            alt="Chat Photo" 
-            class="chat-photo" 
-            @error="setDefaultPhoto($event)"
-          />
-          <span>{{ chat.name }}</span>
+          <div class="chat-info">
+            <img 
+              v-if="chat.photo" 
+              :src="chat.photo" 
+              alt="Chat Photo" 
+              class="chat-photo" 
+              @error="setDefaultPhoto($event)"
+            />
+            <span>{{ chat.name }}</span>
+          </div>
+          <p class="last-convo-time">{{ formatDate(chat.last_convo) }}</p>
         </RouterLink>
       </li>
     </ul>
+
+    <!-- Add a button to navigate to SendMessageFirstView -->
+    <div class="start-new-convo">
+      <RouterLink to="/sendMessageFirstView">
+        <button class="new-convo-btn">Start a New Conversation</button>
+      </RouterLink>
+    </div>
   </div>
 </template>
 
@@ -57,17 +67,15 @@ export default {
         response.data.map(async (chat) => {
           let photoURL = "/default-profile.png"; // Default image
 
-          // ✅ Access the photo URL correctly from the nested 'String' field
           if (chat.photo && chat.photo.String && chat.photo.String !== "/default-profile.png") {
-            // If the photo path is valid, directly use it
             photoURL = chat.photo.String;
           }
 
-          // Returning the processed chat with photo
           return {
             id: chat.id,
             name: chat.name || "Unnamed Chat",
             photo: photoURL,
+            last_convo: chat.last_convo, // Capture last_convo
           };
         })
       );
@@ -80,9 +88,13 @@ export default {
     }
   },
   methods: {
-    // ✅ Fallback if image fails to load
     setDefaultPhoto(event) {
       event.target.src = "/default-profile.png";
+    },
+
+    formatDate(dateString) {
+      const date = new Date(dateString);
+      return date.toLocaleString();
     }
   }
 };
@@ -102,7 +114,7 @@ export default {
 .chat-link {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 8px;
@@ -121,5 +133,37 @@ export default {
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid #007bff;
+}
+
+.chat-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.last-convo-time {
+  font-size: 0.8rem;
+  color: #888;
+  padding-left: 10px;
+  padding-right: 20px;
+  align-self: center;
+  margin-top: 21px !important;
+}
+
+.start-new-convo {
+  margin-top: 20px;
+}
+
+.new-convo-btn {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.new-convo-btn:hover {
+  background-color: #0056b3;
 }
 </style>

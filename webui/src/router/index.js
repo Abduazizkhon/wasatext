@@ -1,9 +1,10 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
-import HomeView from '../views/HomeView.vue'
-import LoginView from "../views/LoginView.vue"
-import UsernameView from "../views/UsernameView.vue"
-import SetMyPhotoView from "../views/ProfileView.vue"
-import ConversationsView from "../views/ConversationsView.vue"
+import { createRouter, createWebHashHistory } from 'vue-router';
+import HomeView from '../views/HomeView.vue';
+import LoginView from "../views/LoginView.vue";
+import UsernameView from "../views/UsernameView.vue";
+import SetMyPhotoView from "../views/ProfileView.vue";
+import ConversationsView from "../views/ConversationsView.vue";
+import SendMessageFirstView from "../views/SendMessageFirstView.vue"; // Import the new view
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
@@ -30,6 +31,14 @@ const router = createRouter({
     { 
       path: "/conversations", 
       component: ConversationsView,
+      beforeEnter: (to, from, next) => {
+        const token = localStorage.getItem("authToken");
+        if (!token) next("/login"); else next();
+      }
+    },
+    {
+      path: '/sendMessageFirstView', 
+      component: SendMessageFirstView,
       beforeEnter: (to, from, next) => {
         const token = localStorage.getItem("authToken");
         if (!token) next("/login"); else next();
