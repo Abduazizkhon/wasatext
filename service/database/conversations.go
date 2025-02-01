@@ -134,8 +134,12 @@ func (db *appdbimpl) ConversationExists(senderID string, recipientID string) (bo
 }
 
 // GetMyConversations_db retrieves all conversations for a specific user.
+// GetMyConversations_db retrieves all conversations for a specific user.
+// GetMyConversations_db retrieves all conversations for a specific user.
+// GetMyConversations_db retrieves all conversations for a specific user.
+// GetMyConversations_db retrieves all conversations for a specific user.
 func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error) {
-	query := `
+    query := `
         SELECT 
             c.id, 
             c.lastconvo, 
@@ -146,7 +150,13 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error
                 ELSE (SELECT u.name FROM users u 
                       JOIN convmembers cm ON u.id = cm.user_id 
                       WHERE cm.conversation_id = c.id AND u.id != ? LIMIT 1)
-            END AS name
+            END AS name,
+            CASE
+                WHEN c.is_group = FALSE THEN (SELECT u.photo FROM users u 
+                                              JOIN convmembers cm ON u.id = cm.user_id 
+                                              WHERE cm.conversation_id = c.id AND u.id != ? LIMIT 1)
+                ELSE NULL
+            END AS user_photo
         FROM 
             conversations c
         JOIN 
@@ -155,35 +165,49 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error
             cm.user_id = ?;
     `
 
-	rows, err := db.c.Query(query, userID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+    rows, err := db.c.Query(query, userID, userID, userID)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
 
-	var conversations []Conversation
-	for rows.Next() {
-		var convo Conversation
-		err := rows.Scan(&convo.ID, &convo.LastConvo, &convo.IsGroup, &convo.Photo, &convo.Name)
-		if err != nil {
-			return nil, err
-		}
+    var conversations []Conversation
+    for rows.Next() {
+        var convo Conversation
+        var userPhoto sql.NullString
+        err := rows.Scan(&convo.ID, &convo.LastConvo, &convo.IsGroup, &convo.Photo, &convo.Name, &userPhoto)
+        if err != nil {
+            return nil, err
+        }
 
-		// ✅ Fix for photo field being a sql.NullString
-		if convo.Photo.Valid {
-			convo.Photo.String = "/uploads/" + convo.Photo.String
-		} else {
-			convo.Photo.String = "" // No profile picture available
-		}
+        // Correct the photo URL by avoiding double '/uploads/'
+        if userPhoto.Valid && userPhoto.String != "" {
+            // Only prepend '/uploads/' if it's not already there
+            if !strings.HasPrefix(userPhoto.String, "/uploads/") {
+                convo.Photo.String = "http://localhost:3000/uploads/" + userPhoto.String
+            } else {
+                convo.Photo.String = "http://localhost:3000" + userPhoto.String
+            }
+        } else if convo.Photo.Valid && convo.Photo.String != "" {
+            // Handle the conversation's own photo URL
+            if !strings.HasPrefix(convo.Photo.String, "/uploads/") {
+                convo.Photo.String = "http://localhost:3000/uploads/" + convo.Photo.String
+            } else {
+                convo.Photo.String = "http://localhost:3000" + convo.Photo.String
+            }
+        } else {
+            // If no valid photo, use the default profile picture
+            convo.Photo.String = "http://localhost:3000/default-profile.png"
+        }
 
-		conversations = append(conversations, convo)
-	}
+        conversations = append(conversations, convo)
+    }
 
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
+    if err = rows.Err(); err != nil {
+        return nil, err
+    }
 
-	return conversations, nil
+    return conversations, nil
 }
 // SendMessage inserts a new message into the database.
 func (db *appdbimpl) SendMessage(conversationID int, senderID string, content string) error {

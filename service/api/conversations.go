@@ -16,30 +16,32 @@ import (
 )
 
 func (rt *_router) getMyConversations(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-	// Log the request
-	context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
+    // Log the request
+    context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
 
-	// Retrieve user_id from the path parameters
-	userID := ps.ByName("id")
-	if userID == "" {
-		context.Logger.Error("User ID is required in the path")
-		http.Error(w, "User ID is required in the path", http.StatusBadRequest)
-		return
-	}
-	context.Logger.Infof("Extracted user_id: %s", userID)
+    // Retrieve user_id from the path parameters
+    userID := ps.ByName("id")
+    if userID == "" {
+        context.Logger.Error("User ID is required in the path")
+        http.Error(w, "User ID is required in the path", http.StatusBadRequest)
+        return
+    }
 
-	// Fetch conversations from the database
-	conversations, err := rt.db.GetMyConversations_db(userID)
-	if err != nil {
-		context.Logger.WithError(err).Error("Error fetching conversations")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-	context.Logger.Infof("Fetched %d conversations", len(conversations))
+    // Fetch conversations from the database
+    conversations, err := rt.db.GetMyConversations_db(userID)
+    if err != nil {
+        context.Logger.WithError(err).Error("Error fetching conversations")
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
+        return
+    }
 
-	// Respond with the list of conversations
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(conversations)
+    // Respond with the list of conversations
+    w.WriteHeader(http.StatusOK)
+    err = json.NewEncoder(w).Encode(conversations)
+    if err != nil {
+        context.Logger.WithError(err).Error("Error encoding response")
+        http.Error(w, "Error encoding response", http.StatusInternalServerError)
+    }
 }
 func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
 	// Log request

@@ -11,7 +11,13 @@
     <ul v-else>
       <li v-for="chat in conversations" :key="chat.id" class="chat-item">
         <RouterLink :to="`/chat/${chat.id}`" class="chat-link">
-          <img v-if="chat.photo" :src="chat.photo" alt="Chat Photo" class="chat-photo" />
+          <img 
+            v-if="chat.photo" 
+            :src="chat.photo" 
+            alt="Chat Photo" 
+            class="chat-photo" 
+            @error="setDefaultPhoto($event)"
+          />
           <span>{{ chat.name }}</span>
         </RouterLink>
       </li>
@@ -23,7 +29,7 @@
 import axios from "axios";
 
 export default {
-  name: "ChatsView",
+  name: "ConversationsView",
   data() {
     return {
       conversations: [],
@@ -45,17 +51,38 @@ export default {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      this.conversations = response.data.map(chat => ({
-        id: chat.id,
-        name: chat.name || "Unnamed Chat",
-        photo: chat.photo && chat.photo.Valid ? `http://localhost:3000${chat.photo.String}` : "/default-profile.png",
-      }));
+      console.log("📝 Full API Response:", response.data); // Debugging
 
-      console.log("✅ Conversations loaded:", this.conversations);
+      this.conversations = await Promise.all(
+        response.data.map(async (chat) => {
+          let photoURL = "/default-profile.png"; // Default image
+
+          // ✅ Access the photo URL correctly from the nested 'String' field
+          if (chat.photo && chat.photo.String && chat.photo.String !== "/default-profile.png") {
+            // If the photo path is valid, directly use it
+            photoURL = chat.photo.String;
+          }
+
+          // Returning the processed chat with photo
+          return {
+            id: chat.id,
+            name: chat.name || "Unnamed Chat",
+            photo: photoURL,
+          };
+        })
+      );
+
+      console.log("✅ Processed Conversations Data:", this.conversations);
     } catch (error) {
       console.error("❌ Error fetching conversations:", error);
     } finally {
       this.loading = false;
+    }
+  },
+  methods: {
+    // ✅ Fallback if image fails to load
+    setDefaultPhoto(event) {
+      event.target.src = "/default-profile.png";
     }
   }
 };
