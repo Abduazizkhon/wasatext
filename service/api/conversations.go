@@ -313,48 +313,55 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 }
 
 func (rt *_router) getMessages(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-	// Extract conversation ID from the path parameters
-	conversationID, err := strconv.Atoi(ps.ByName("c_id"))
-	if err != nil || conversationID <= 0 {
-		context.Logger.WithError(err).Error("Invalid conversation ID")
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid conversation ID"})
-		return
-	}
+    // Extract conversation ID from the path parameters
+    conversationID, err := strconv.Atoi(ps.ByName("c_id"))
+    if err != nil || conversationID <= 0 {
+        context.Logger.WithError(err).Error("Invalid conversation ID")
+        w.WriteHeader(http.StatusBadRequest)
+        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid conversation ID"})
+        return
+    }
 
-	// Fetch the conversation details
-	conversation, err := rt.db.GetConversationById(conversationID)
-	if err != nil {
-		context.Logger.WithError(err).Error("Failed to fetch conversation")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch conversation"})
-		return
-	}
+    // Fetch the conversation details
+    conversation, err := rt.db.GetConversationById(conversationID)
+    if err != nil {
+        context.Logger.WithError(err).Error("Failed to fetch conversation")
+        w.WriteHeader(http.StatusInternalServerError)
+        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch conversation"})
+        return
+    }
 
-	if conversation.ID == 0 {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Conversation not found"})
-		return
-	}
+    if conversation.ID == 0 {
+        w.WriteHeader(http.StatusNotFound)
+        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Conversation not found"})
+        return
+    }
 
-	// Fetch all messages in the conversation
-	messages, err := rt.db.GetMessagesByConversationId(conversationID)
-	if err != nil {
-		context.Logger.WithError(err).Error("Failed to fetch messages")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch messages"})
-		return
-	}
+    // Fetch all messages in the conversation
+    messages, err := rt.db.GetMessagesByConversationId(conversationID)
+    if err != nil {
+        context.Logger.WithError(err).Error("Failed to fetch messages")
+        w.WriteHeader(http.StatusInternalServerError)
+        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch messages"})
+        return
+    }
 
-	// Prepare the response
-	response := map[string]interface{}{
-		"conversation": conversation,
-		"messages":     messages,
-	}
+    // Ensure each message has a valid sender_photo, otherwise use default
+    for i, message := range messages {
+        if !message.SenderPhoto.Valid || message.SenderPhoto.String == "" {
+            messages[i].SenderPhoto.String = "/default-profile.png" // Set to default profile image
+        }
+    }
 
-	// Respond with the conversation and messages
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(response)
+    // Prepare the response
+    response := map[string]interface{}{
+        "conversation": conversation,
+        "messages":     messages,
+    }
+
+    // Respond with the conversation and messages
+    w.WriteHeader(http.StatusOK)
+    _ = json.NewEncoder(w).Encode(response)
 }
 
 func (rt *_router) deleteMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
