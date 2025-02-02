@@ -518,47 +518,66 @@ func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps htt
 
 // createGroup handles the creation of a new group conversation
 func (rt *_router) createGroup(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-    creatorID := context.UserID // ✅ Get authenticated user (creator)
+    creatorID := context.UserID // Get authenticated user (creator)
     if creatorID == "" {
         http.Error(w, "User not authenticated", http.StatusUnauthorized)
         return
     }
 
-    // Parse request body
-    var input struct {
-        GroupName  string   `json:"group_name"`  // ✅ Group name
-        Photo      string   `json:"photo,omitempty"` // Optional group photo
-        Usernames  []string `json:"usernames"`  // ✅ List of usernames to add (creator auto-added)
-    }
-    err := json.NewDecoder(r.Body).Decode(&input)
-    if err != nil || input.GroupName == "" {
-        http.Error(w, "Invalid input: group_name is required", http.StatusBadRequest)
+    // Parse the incoming form data (10MB limit)
+    err := r.ParseMultipartForm(10 << 20)
+    if err != nil {
+        http.Error(w, "Error parsing form", http.StatusBadRequest)
         return
     }
 
-    // ✅ Step 1: Create a new group conversation
-    newGroup, err := rt.db.CreateConversation_db(true, input.GroupName, input.Photo)
+    groupName := r.FormValue("group_name")
+    usernamesRaw := r.FormValue("usernames")
+
+    // Parse usernames from JSON string
+    var usernames []string
+    if usernamesRaw != "" {
+        err = json.Unmarshal([]byte(usernamesRaw), &usernames)
+        if err != nil {
+            http.Error(w, "Invalid usernames format", http.StatusBadRequest)
+            return
+        }
+    }
+
+    if groupName == "" || len(usernames) == 0 {
+        http.Error(w, "Invalid input: group_name and usernames are required", http.StatusBadRequest)
+        return
+    }
+
+    // Handle the uploaded photo
+    var photoPath string
+    photoFile, _, err := r.FormFile("photo") // Get the uploaded file
+    if err == nil {
+        // Save the photo to disk and get the file path
+        _, filePath, saveErr := rt.db.SaveUploadedFile(photoFile, r.MultipartForm.File["photo"][0], creatorID)
+        if saveErr != nil {
+            http.Error(w, "Error saving photo", http.StatusInternalServerError)
+            return
+        }
+        photoPath = filePath
+    }
+
+    // Step 1: Create a new group conversation
+    newGroup, err := rt.db.CreateConversation_db(true, groupName, photoPath)
     if err != nil {
         http.Error(w, "Error creating group", http.StatusInternalServerError)
         return
     }
 
-    // ✅ Step 2: Add the creator to the group
+    // Step 2: Add the creator to the group
     err = rt.db.AddUsersToConversation(creatorID, newGroup.ID)
     if err != nil {
         http.Error(w, "Error adding creator to group", http.StatusInternalServerError)
         return
     }
 
-    // List to store added member usernames
-    members := []string{}
-
-    // ✅ Fetch and add creator's username
-    creator, _ := rt.db.GetUserId(creatorID)
-    members = append(members, creator.Username)
-
-    // ✅ Step 3: Fetch user IDs for given usernames and add them to the group
-    for _, username := range input.Usernames {
+    // Step 3: Fetch user IDs for given usernames and add them to the group
+    for _, username := range usernames {
         user, err := rt.db.GetUser(username)
         if err != nil {
             if err == sql.ErrNoRows {
@@ -574,20 +593,17 @@ func (rt *_router) createGroup(w http.ResponseWriter, r *http.Request, ps httpro
             http.Error(w, "Error adding user "+username+" to group", http.StatusInternalServerError)
             return
         }
-
-        // ✅ Add username to the members list
-        members = append(members, user.Username)
     }
 
-    // ✅ Step 4: Respond with success, group details, and members
+    // Step 4: Respond with success, group details, and members
     w.WriteHeader(http.StatusCreated)
     _ = json.NewEncoder(w).Encode(map[string]interface{}{
         "message":    "Group created successfully",
-        "group_id":   newGroup.ID,  // ✅ `group_id` is actually `c_id`
-        "c_id":       newGroup.ID,  // ✅ Explicitly return `c_id`
+        "group_id":   newGroup.ID,
+        "c_id":       newGroup.ID,
         "group_name": newGroup.Name,
-        "photo":      newGroup.Photo,
-        "members":    members,  // ✅ Only usernames
+        "photo":      newGroup.Photo.String, // This should now correctly include the photo path
+        "members":    usernames,
     })
 }
 

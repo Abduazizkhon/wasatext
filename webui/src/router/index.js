@@ -5,6 +5,7 @@ import UsernameView from "../views/UsernameView.vue";
 import SetMyPhotoView from "../views/ProfileView.vue";
 import ConversationsView from "../views/ConversationsView.vue";
 import SendMessageFirstView from "../views/SendMessageFirstView.vue"; // Import the new view
+import CreateGroupView from "../views/CreateGroupView.vue"; // Import the new CreateGroupView
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
@@ -43,7 +44,15 @@ const router = createRouter({
         const token = localStorage.getItem("authToken");
         if (!token) next("/login"); else next();
       }
-    }
+    },
+	{
+		path: '/createGroupView',
+		component: CreateGroupView,
+		beforeEnter: (to, from, next) => {
+		  const token = localStorage.getItem("authToken");
+		  if (!token) next("/login"); else next();
+		}
+	  }
   ]
 });
 

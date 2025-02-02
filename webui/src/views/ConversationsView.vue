@@ -31,6 +31,12 @@
       <RouterLink to="/sendMessageFirstView">
         <button class="new-convo-btn">Start a New Conversation</button>
       </RouterLink>
+      <!-- Add a button to navigate to CreateGroupView -->
+        <div class="start-new-group">
+        <RouterLink to="/createGroupView">
+            <button class="new-group-btn">Create a New Group</button>
+        </RouterLink>
+        </div>
     </div>
   </div>
 </template>
@@ -63,22 +69,36 @@ export default {
 
       console.log("📝 Full API Response:", response.data); // Debugging
 
-      this.conversations = await Promise.all(
-        response.data.map(async (chat) => {
-          let photoURL = "/default-profile.png"; // Default image
+    this.conversations = await Promise.all(
+    response.data.map(async (chat) => {
+        let photoURL = "/default-profile.png"; // Default image
 
-          if (chat.photo && chat.photo.String && chat.photo.String !== "/default-profile.png") {
-            photoURL = chat.photo.String;
-          }
+        // Handle group and individual conversations
+        if (chat.is_group) {
+        // For group chats, we check if a group photo exists
+        if (chat.photo && chat.photo.String && chat.photo.String !== "/default-profile.png") {
+            // Check if the photo already includes 'http://localhost:3000' to avoid duplication
+            photoURL = chat.photo.String.startsWith("http://localhost:3000")
+            ? chat.photo.String // If it already has the full URL, use it directly
+            : `http://localhost:3000${chat.photo.String}`; // Otherwise, prepend the full URL
+        }
+        } else {
+        // For individual chats, handle user photo
+        if (chat.photo && chat.photo.String && chat.photo.String !== "/default-profile.png") {
+            photoURL = chat.photo.String.startsWith("http://localhost:3000")
+            ? chat.photo.String // If it already has the full URL, use it directly
+            : `http://localhost:3000${chat.photo.String}`; // Otherwise, prepend the full URL
+        }
+        }
 
-          return {
-            id: chat.id,
-            name: chat.name || "Unnamed Chat",
-            photo: photoURL,
-            last_convo: chat.last_convo, // Capture last_convo
-          };
-        })
-      );
+        return {
+        id: chat.id,
+        name: chat.name || "Unnamed Chat",
+        photo: photoURL, // Corrected photo URL for both groups and users
+        last_convo: chat.last_convo, // Capture last_convo
+        };
+    })
+    );
 
       console.log("✅ Processed Conversations Data:", this.conversations);
     } catch (error) {
@@ -164,6 +184,20 @@ export default {
 }
 
 .new-convo-btn:hover {
+  background-color: #0056b3;
+}
+
+.new-group-btn {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.new-group-btn:hover {
   background-color: #0056b3;
 }
 </style>

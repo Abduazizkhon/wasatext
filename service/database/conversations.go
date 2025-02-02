@@ -80,12 +80,18 @@ func (db *appdbimpl) GetConversationById(conversationID int) (conversation Conve
 // -------Messages-----
 
 func (db *appdbimpl) CreateConversation_db(isGroup bool, name string, photo string) (conversation Conversation, err error) {
+	var photoURL sql.NullString
+	if photo != "" {
+		photoURL = sql.NullString{String: photo, Valid: true} // Set the photo URL correctly
+	} else {
+		photoURL = sql.NullString{Valid: false} // If there's no photo, set it as NULL
+	}
 	query := `
 		INSERT INTO conversations (lastconvo, is_group, name, photo)
 		VALUES (current_timestamp, ?, ?, ?)
 		RETURNING id, lastconvo, is_group, name, photo;
 	`
-	err = db.c.QueryRow(query, isGroup, name, photo).Scan(
+	err = db.c.QueryRow(query, isGroup, name, photoURL).Scan(
 		&conversation.ID,
 		&conversation.LastConvo,
 		&conversation.IsGroup,
