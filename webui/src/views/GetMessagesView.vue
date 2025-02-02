@@ -30,11 +30,12 @@
             </div>
 
             <!-- Check if the content is a URL (image/gif) -->
+            <!-- Check if the content is a URL (image/gif) -->
             <div v-if="isImage(message.content)">
-              <img :src="message.content" alt="Image Message" class="message-media"/>
+            <img :src="'http://localhost:3000' + message.content" alt="Image Message" class="message-media"/>
             </div>
             <div v-else-if="isGif(message.content)">
-              <img :src="message.content" alt="Gif Message" class="message-media"/>
+            <img :src="'http://localhost:3000' + message.content" alt="Gif Message" class="message-media"/>
             </div>
             <div v-else>
               <p class="message-text">{{ message.content }}</p>
@@ -43,6 +44,15 @@
         </div>
       </li>
     </ul>
+
+    <!-- Message Input Section -->
+    <div class="message-input">
+      <textarea v-model="messageText" placeholder="Type a message..." class="message-textarea"></textarea>
+      <div class="media-upload">
+        <input type="file" @change="handleFileChange" accept="image/*, .gif" class="file-input" />
+      </div>
+      <button @click="sendMessage" class="send-button">Send</button>
+    </div>
   </div>
 </template>
 
@@ -56,6 +66,8 @@ export default {
       messages: [], // Ensure it's always an array
       loading: true,
       isGroup: false, // Track if the conversation is a group
+      messageText: '', // Message text
+      selectedFile: null, // File selected for upload
     };
   },
   async created() {
@@ -92,12 +104,60 @@ export default {
       return date.toLocaleString();
     },
     isImage(content) {
-      return /\.(jpg|jpeg|png|gif)$/i.test(content);
+      return /\.(jpg|jpeg|png)$/i.test(content);
     },
     isGif(content) {
       return /\.(gif)$/i.test(content);
-    }
-  }
+    },
+    handleFileChange(event) {
+      this.selectedFile = event.target.files[0]; // Get the file selected by the user
+    },
+    async sendMessage() {
+        const token = localStorage.getItem("authToken");
+        const conversationID = this.$route.params.c_id;
+
+        if (!token || !conversationID) {
+            console.warn("🚨 User not authenticated or no conversation ID.");
+            return;
+        }
+
+        let formData = new FormData();
+        formData.append("content", this.messageText);
+        formData.append("content_type", "text");
+
+        if (this.selectedFile) {
+            formData.append("file", this.selectedFile);
+            formData.append("content_type", "photo"); // For image/gif
+        }
+
+        try {
+            const response = await axios.post(`http://localhost:3000/conversations/${conversationID}/messages`, formData, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "multipart/form-data",
+                },
+            });
+
+            // Handle response, assuming response.data.sender_username contains the username
+            const newMessage = {
+                content: response.data.content, // Ensure this has the correct path (either URL for photo, gif, or text)
+                sender_username: response.data.sender_username, // Use the sender's username from the response
+                sender_photo: { String: "/default-profile.png" }, // Add default photo for now, or use actual photo if available
+                datetime: new Date().toISOString(),
+            };
+
+            this.messages.push(newMessage); // Add the new message to the messages array
+
+            // Reset input fields
+            this.messageText = '';
+            this.selectedFile = null;
+
+            console.log("✅ Message sent:", response.data);
+        } catch (error) {
+            console.error("❌ Error sending message:", error);
+        }
+    },
+  },
 };
 </script>
 
@@ -165,5 +225,43 @@ export default {
 
 .message-item p {
   margin: 5px 0;
+}
+
+/* New styling for the message input */
+.message-input {
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+}
+
+.message-textarea {
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  margin-bottom: 10px;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+.media-upload {
+  margin-bottom: 10px;
+}
+
+.file-input {
+  font-size: 1rem;
+}
+
+.send-button {
+  padding: 10px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.send-button:hover {
+  background-color: #0056b3;
 }
 </style>
