@@ -1,94 +1,128 @@
 <template>
-  <div class="messages-container">
-    <h1>Messages</h1>
+  <div class="page-wrapper">
+    <!-- The scrollable area with messages -->
+    <div class="messages-container" ref="messagesContainer">
+      <h1>Messages</h1>
 
-    <div v-if="loading">Loading messages...</div>
+      <div v-if="loading">Loading messages...</div>
 
-    <!-- Check if it's a group and there are no messages -->
-    <div v-else-if="messages.length === 0 && isGroup">
-      <p>There are no messages yet</p>
-    </div>
+      <!-- Check if it's a group and there are no messages -->
+      <div v-else-if="messages.length === 0 && isGroup">
+        <p>There are no messages yet</p>
+      </div>
 
-    <!-- Default case: display messages -->
-    <div v-else-if="messages.length === 0">
-      <p>No messages yet.</p>
-    </div>
+      <!-- Default case: display messages -->
+      <div v-else-if="messages.length === 0">
+        <p>No messages yet.</p>
+      </div>
 
-    <ul v-else>
-      <li v-for="message in messages" :key="message.id" class="message-item">
-        <div class="message-info">
-          <img
-            v-if="message.sender_photo && message.sender_photo.String"
-            :src="getImageUrl(message.sender_photo.String)"
-            alt="Sender Photo"
-            class="sender-photo"
-          />
-          <div class="message-content">
-            <div class="message-header">
-              <span>{{ message.sender_username }}</span>
-              <span class="message-time">{{ formatDate(message.datetime) }}</span>
-            </div>
+      <ul v-else>
+        <li
+          v-for="message in messages"
+          :key="message.id"
+          class="message-item"
+        >
+          <div class="message-info">
+            <img
+              v-if="message.sender_photo && message.sender_photo.String"
+              :src="getImageUrl(message.sender_photo.String)"
+              alt="Sender Photo"
+              class="sender-photo"
+            />
+            <div class="message-content">
+              <div class="message-header">
+                <span>{{ message.sender_username }}</span>
+                <span class="message-time">{{ formatDate(message.datetime) }}</span>
+              </div>
 
-            <!-- Check if the content is a URL (image/gif) -->
-            <div v-if="isImage(message.content)">
-              <img :src="getImageUrl(message.content)" alt="Image Message" class="message-media"/>
-            </div>
-            <div v-else-if="isGif(message.content)">
-              <img :src="getImageUrl(message.content)" alt="Gif Message" class="message-media"/>
-            </div>
-            <div v-else>
-              <p class="message-text">{{ message.content }}</p>
+              <div v-if="isImage(message.content)">
+                <img
+                  :src="getImageUrl(message.content)"
+                  alt="Image Message"
+                  class="message-media"
+                />
+              </div>
+              <div v-else-if="isGif(message.content)">
+                <img
+                  :src="getImageUrl(message.content)"
+                  alt="Gif Message"
+                  class="message-media"
+                />
+              </div>
+              <div v-else>
+                <p class="message-text">{{ message.content }}</p>
+              </div>
             </div>
           </div>
-        </div>
-      </li>
-    </ul>
+        </li>
+      </ul>
+    </div>
 
-    <!-- Message Input Section -->
-    <div class="message-input">
-      <textarea v-model="messageText" placeholder="Type a message..." class="message-textarea"></textarea>
+    <!-- The pinned input bar at the bottom -->
+    <div class="message-input-bar">
+      <textarea
+        v-model="messageText"
+        placeholder="Type a message..."
+        class="message-textarea"
+        @focus="isInteracting = true"
+        @blur="checkInteraction"
+        @input="checkInteraction"
+      ></textarea>
+
       <div class="media-upload">
-        <input type="file" @change="handleFileChange" accept="image/*, .gif" class="file-input" />
+        <input
+          type="file"
+          accept="image/*, .gif"
+          class="file-input"
+          @click="isInteracting = true"
+          @change="handleFileChange"
+        />
       </div>
+
       <button @click="sendMessage" class="send-button">Send</button>
     </div>
   </div>
 </template>
 
 <script>
-import axios from 'axios'; // Ensure axios is imported
+import axios from 'axios';
 
 export default {
   name: "GetMessagesView",
   data() {
     return {
-      messages: [], // Ensure it's always an array
+      messages: [],
       loading: true,
-      isGroup: false, // Track if the conversation is a group
-      messageText: '', // Message text
-      selectedFile: null, // File selected for upload
+      isGroup: false,
+      messageText: '',
+      selectedFile: null,
+
+      // Prevent auto-refresh while user is typing or uploading
+      isInteracting: false,
+      reloadInterval: null,
     };
   },
   async created() {
     const token = localStorage.getItem("authToken");
-    const conversationID = this.$route.params.c_id; // Fetch conversation ID from route
+    const conversationID = this.$route.params.c_id;
 
     if (!token || !conversationID) {
-      console.warn("🚨 User not authenticated or no conversation ID.");
+      console.warn("🚨 Missing token or conversation ID. Cannot load messages.");
       return;
     }
 
     try {
       console.log("🔍 Fetching conversation messages...");
-      const response = await axios.get(`http://localhost:3000/conversations/${conversationID}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await axios.get(
+        `http://localhost:3000/conversations/${conversationID}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-      console.log("📝 Full API Response:", response.data); // Debugging
-
-      // Ensure messages is an array even if there are no messages
-      this.messages = Array.isArray(response.data.messages) ? response.data.messages : [];
-      this.isGroup = response.data.conversation.is_group; // Set the group status
+      // Ensure messages is an array
+      this.messages = Array.isArray(response.data.messages)
+        ? response.data.messages
+        : [];
+      this.isGroup = response.data.conversation.is_group;
 
       console.log("✅ Processed Messages Data:", this.messages);
     } catch (error) {
@@ -97,7 +131,33 @@ export default {
       this.loading = false;
     }
   },
+  mounted() {
+    // Once component mounts, scroll to bottom of message list
+    this.$nextTick(() => {
+      this.scrollToBottom();
+    });
+
+    // Auto-refresh every 5 seconds, if user not interacting
+    this.reloadInterval = setInterval(() => {
+      if (!this.isInteracting) {
+        window.location.reload();
+      }
+    }, 5000);
+  },
+  beforeDestroy() {
+    if (this.reloadInterval) {
+      clearInterval(this.reloadInterval);
+    }
+  },
   methods: {
+    // Scroll the messages container to the bottom
+    scrollToBottom() {
+      // We reference messagesContainer and jump to its scrollHeight
+      const container = this.$refs.messagesContainer;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
+    },
     formatDate(dateString) {
       const date = new Date(dateString);
       return date.toLocaleString();
@@ -109,80 +169,122 @@ export default {
       return /\.(gif)$/i.test(content);
     },
     handleFileChange(event) {
-      this.selectedFile = event.target.files[0]; // Get the file selected by the user
+      this.selectedFile = event.target.files[0];
+      if (!this.selectedFile) {
+        this.checkInteraction();
+      }
+    },
+    checkInteraction() {
+      // If there's typed text or a file selected, user is interacting
+      if (this.messageText.trim() || this.selectedFile) {
+        this.isInteracting = true;
+      } else {
+        this.isInteracting = false;
+      }
     },
     async sendMessage() {
-        const token = localStorage.getItem("authToken");
-        const conversationID = this.$route.params.c_id;
+      const token = localStorage.getItem("authToken");
+      const conversationID = this.$route.params.c_id;
 
-        if (!token || !conversationID) {
-            console.warn("🚨 User not authenticated or no conversation ID.");
-            return;
-        }
+      if (!token || !conversationID) {
+        console.warn("🚨 Missing token or conversation ID. Cannot send message.");
+        return;
+      }
 
-        let formData = new FormData();
-        formData.append("content", this.messageText);
-        formData.append("content_type", "text");
+      let formData = new FormData();
+      formData.append("content", this.messageText);
+      formData.append("content_type", "text");
 
-        if (this.selectedFile) {
-            formData.append("file", this.selectedFile);
-            formData.append("content_type", "photo"); // For image/gif
-        }
+      if (this.selectedFile) {
+        formData.append("file", this.selectedFile);
+        formData.append("content_type", "photo");
+      }
 
-        try {
-            const response = await axios.post(`http://localhost:3000/conversations/${conversationID}/messages`, formData, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "multipart/form-data",
-                },
-            });
+      try {
+        console.log("[sendMessage] Sending message...");
+        const response = await axios.post(
+          `http://localhost:3000/conversations/${conversationID}/messages`,
+          formData,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "multipart/form-data",
+            },
+          }
+        );
 
-            // Handle response, assuming response.data.sender_username contains the username
-            const newMessage = {
-                content: response.data.content, // Ensure this has the correct path (either URL for photo, gif, or text)
-                sender_username: response.data.sender_username, // Use the sender's username from the response
-                sender_photo: response.data.sender_photo ? `http://localhost:3000${response.data.sender_photo}` : '/default-profile.png', // Use the sender's photo from the response, or default if unavailable
-                datetime: new Date().toISOString(),
-            };
+        const newMessage = {
+          content: response.data.content,
+          sender_username: response.data.sender_username,
+          sender_photo: response.data.sender_photo
+            ? `http://localhost:3000${response.data.sender_photo}`
+            : '/default-profile.png',
+          datetime: new Date().toISOString(),
+        };
 
-            this.messages.push(newMessage); // Add the new message to the messages array
+        this.messages.push(newMessage);
 
-            // Reset input fields
-            this.messageText = '';
-            this.selectedFile = null;
+        // Clear text & file
+        this.messageText = '';
+        this.selectedFile = null;
+        this.isInteracting = false;
 
-            console.log("✅ Message sent:", response.data);
+        console.log("✅ Message sent:", response.data);
 
-            // Refresh the page
-            window.location.reload();  // This will reload the page after sending the message
-        } catch (error) {
-            console.error("❌ Error sending message:", error);
-        }
+        // Scroll to bottom, then refresh
+        this.$nextTick(() => {
+          this.scrollToBottom();
+          window.location.reload();
+        });
+      } catch (error) {
+        console.error("❌ Error sending message:", error);
+      }
     },
-
-    // Method to get full image URL
     getImageUrl(imagePath) {
       if (imagePath && imagePath.startsWith('/uploads')) {
         return `http://localhost:3000${imagePath}`;
       }
-      return '/default-profile.png'; // Return default if no photo
-    }
+      return '/default-profile.png';
+    },
   },
 };
 </script>
 
-
-
 <style scoped>
+/* 
+  The entire page is a column layout.
+  The .messages-container will scroll if content is taller than available space.
+*/
+.page-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh; /* Use full viewport height */
+  overflow: hidden; /* Hide any overflow beyond the container */
+}
+
+/* The scrollable area with messages occupies the main vertical space,
+   leaving room at the bottom for the pinned input bar */
 .messages-container {
+  flex: 1; 
+  overflow-y: auto;
   padding: 20px;
   background-color: #f7f7f7;
-  max-width: 600px;
-  margin: 0 auto;
-  border-radius: 10px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
+/* The pinned bottom input bar */
+.message-input-bar {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  background-color: #fdfdfd; 
+  border-top: 1px solid #ccc;
+  margin-bottom: 40px;  
+  /* pinned to bottom, spanning full width */
+  flex-shrink: 0; /* so it doesn't shrink */
+}
+
+/* Now the rest of your message styling remains the same */
 .message-item {
   list-style: none;
   margin: 15px 0;
@@ -206,7 +308,6 @@ export default {
   background-color: #fff;
   border-radius: 10px;
   padding: 10px;
-  margin-left: 50px;
   max-width: 80%;
 }
 
@@ -230,8 +331,9 @@ export default {
 }
 
 .message-media {
-  max-width: 100%;
-  height: auto;
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
   margin-top: 10px;
 }
 
@@ -239,24 +341,18 @@ export default {
   margin: 5px 0;
 }
 
-/* New styling for the message input */
-.message-input {
-  display: flex;
-  flex-direction: column;
-  margin-top: 20px;
-}
-
+/* The input area in the bar */
 .message-textarea {
-  padding: 10px;
-  border-radius: 5px;
+  flex: 1; 
+  padding: 8px;
+  border-radius: 4px;
   border: 1px solid #ccc;
-  margin-bottom: 10px;
-  font-size: 1rem;
   resize: vertical;
+  margin-right: 10px;
 }
 
 .media-upload {
-  margin-bottom: 10px;
+  margin-right: 10px;
 }
 
 .file-input {
@@ -270,7 +366,6 @@ export default {
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  align-self: flex-start;
 }
 
 .send-button:hover {
