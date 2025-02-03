@@ -17,11 +17,7 @@
       </div>
 
       <ul v-else>
-        <li
-          v-for="message in messages"
-          :key="message.id"
-          class="message-item"
-        >
+        <li v-for="message in messages" :key="message.id" class="message-item">
           <div class="message-info">
             <img
               v-if="message.sender_photo && message.sender_photo.String"
@@ -33,6 +29,9 @@
               <div class="message-header">
                 <span>{{ message.sender_username }}</span>
                 <span class="message-time">{{ formatDate(message.datetime) }}</span>
+
+                <!-- Simple condition for displaying the delete button (for debugging) -->
+                <button v-if="true" @click="deleteMessage(message.id)" class="delete-button">Delete</button>
               </div>
 
               <div v-if="isImage(message.content)">
@@ -96,8 +95,6 @@ export default {
       isGroup: false,
       messageText: '',
       selectedFile: null,
-
-      // Prevent auto-refresh while user is typing or uploading
       isInteracting: false,
       reloadInterval: null,
     };
@@ -112,19 +109,12 @@ export default {
     }
 
     try {
-      console.log("🔍 Fetching conversation messages...");
       const response = await axios.get(
         `http://localhost:3000/conversations/${conversationID}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      // Ensure messages is an array
-      this.messages = Array.isArray(response.data.messages)
-        ? response.data.messages
-        : [];
+      this.messages = Array.isArray(response.data.messages) ? response.data.messages : [];
       this.isGroup = response.data.conversation.is_group;
-
-      console.log("✅ Processed Messages Data:", this.messages);
     } catch (error) {
       console.error("❌ Error fetching messages:", error);
     } finally {
@@ -132,12 +122,10 @@ export default {
     }
   },
   mounted() {
-    // Once component mounts, scroll to bottom of message list
     this.$nextTick(() => {
       this.scrollToBottom();
     });
 
-    // Auto-refresh every 5 seconds, if user not interacting
     this.reloadInterval = setInterval(() => {
       if (!this.isInteracting) {
         window.location.reload();
@@ -150,9 +138,7 @@ export default {
     }
   },
   methods: {
-    // Scroll the messages container to the bottom
     scrollToBottom() {
-      // We reference messagesContainer and jump to its scrollHeight
       const container = this.$refs.messagesContainer;
       if (container) {
         container.scrollTop = container.scrollHeight;
@@ -170,12 +156,8 @@ export default {
     },
     handleFileChange(event) {
       this.selectedFile = event.target.files[0];
-      if (!this.selectedFile) {
-        this.checkInteraction();
-      }
     },
     checkInteraction() {
-      // If there's typed text or a file selected, user is interacting
       if (this.messageText.trim() || this.selectedFile) {
         this.isInteracting = true;
       } else {
@@ -201,7 +183,6 @@ export default {
       }
 
       try {
-        console.log("[sendMessage] Sending message...");
         const response = await axios.post(
           `http://localhost:3000/conversations/${conversationID}/messages`,
           formData,
@@ -224,14 +205,10 @@ export default {
 
         this.messages.push(newMessage);
 
-        // Clear text & file
         this.messageText = '';
         this.selectedFile = null;
         this.isInteracting = false;
 
-        console.log("✅ Message sent:", response.data);
-
-        // Scroll to bottom, then refresh
         this.$nextTick(() => {
           this.scrollToBottom();
           window.location.reload();
@@ -241,16 +218,47 @@ export default {
       }
     },
     getImageUrl(imagePath) {
-      if (imagePath && imagePath.startsWith('/uploads')) {
-        return `http://localhost:3000${imagePath}`;
+      return imagePath && imagePath.startsWith('/uploads')
+        ? `http://localhost:3000${imagePath}`
+        : '/default-profile.png';
+    },
+
+    // Debugging delete functionality
+    async deleteMessage(messageId) {
+      console.log("Attempting to delete message with ID:", messageId);
+      const conversationID = this.$route.params.c_id;
+      const token = localStorage.getItem("authToken");
+
+      try {
+        await axios.delete(
+          `http://localhost:3000/conversations/${conversationID}/messages/${messageId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log("Message deleted successfully.");
+        this.messages = this.messages.filter((message) => message.id !== messageId);
+      } catch (error) {
+        console.error("❌ Error deleting message:", error);
       }
-      return '/default-profile.png';
     },
   },
 };
 </script>
 
+
 <style scoped>
+/* Add a button for delete functionality */
+.delete-button {
+  background-color: red;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.delete-button:hover {
+  background-color: darkred;
+}
 /* 
   The entire page is a column layout.
   The .messages-container will scroll if content is taller than available space.
