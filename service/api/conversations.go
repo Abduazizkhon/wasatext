@@ -296,7 +296,7 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
         }
     }
 
-    // Fetch the username from the database using the senderID
+    // Fetch the username and photo from the database using the senderID
     user, err := rt.db.GetUserByID(senderID)
     if err != nil {
         context.Logger.WithError(err).Error("Failed to fetch user")
@@ -312,13 +312,14 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
         return
     }
 
-    // Send the response with the username and message content
+    // Send the response with the username, photo, and message content
     w.WriteHeader(http.StatusCreated)
     _ = json.NewEncoder(w).Encode(map[string]interface{}{
-        "message":      "Message sent successfully",
-        "content_type": contentType,
-        "content":      content,
-        "sender_username": user.Username, // Now using the actual username from GetUserByID
+        "message":        "Message sent successfully",
+        "content_type":   contentType,
+        "content":        content,
+        "sender_username": user.Username,    // Now using the actual username from GetUserByID
+        "sender_photo":   user.Photo.String, // Return the photo (URL or empty if no photo)
     })
 }
 

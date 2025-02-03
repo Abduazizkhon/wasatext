@@ -19,7 +19,7 @@
         <div class="message-info">
           <img
             v-if="message.sender_photo && message.sender_photo.String"
-            :src="message.sender_photo.String || '/default-profile.png'"
+            :src="getImageUrl(message.sender_photo.String)"
             alt="Sender Photo"
             class="sender-photo"
           />
@@ -30,12 +30,11 @@
             </div>
 
             <!-- Check if the content is a URL (image/gif) -->
-            <!-- Check if the content is a URL (image/gif) -->
             <div v-if="isImage(message.content)">
-            <img :src="'http://localhost:3000' + message.content" alt="Image Message" class="message-media"/>
+              <img :src="getImageUrl(message.content)" alt="Image Message" class="message-media"/>
             </div>
             <div v-else-if="isGif(message.content)">
-            <img :src="'http://localhost:3000' + message.content" alt="Gif Message" class="message-media"/>
+              <img :src="getImageUrl(message.content)" alt="Gif Message" class="message-media"/>
             </div>
             <div v-else>
               <p class="message-text">{{ message.content }}</p>
@@ -142,7 +141,7 @@ export default {
             const newMessage = {
                 content: response.data.content, // Ensure this has the correct path (either URL for photo, gif, or text)
                 sender_username: response.data.sender_username, // Use the sender's username from the response
-                sender_photo: { String: "/default-profile.png" }, // Add default photo for now, or use actual photo if available
+                sender_photo: response.data.sender_photo ? `http://localhost:3000${response.data.sender_photo}` : '/default-profile.png', // Use the sender's photo from the response, or default if unavailable
                 datetime: new Date().toISOString(),
             };
 
@@ -153,13 +152,26 @@ export default {
             this.selectedFile = null;
 
             console.log("✅ Message sent:", response.data);
+
+            // Refresh the page
+            window.location.reload();  // This will reload the page after sending the message
         } catch (error) {
             console.error("❌ Error sending message:", error);
         }
     },
+
+    // Method to get full image URL
+    getImageUrl(imagePath) {
+      if (imagePath && imagePath.startsWith('/uploads')) {
+        return `http://localhost:3000${imagePath}`;
+      }
+      return '/default-profile.png'; // Return default if no photo
+    }
   },
 };
 </script>
+
+
 
 <style scoped>
 .messages-container {
