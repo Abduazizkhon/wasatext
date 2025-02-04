@@ -8,6 +8,32 @@
     >
       Leave Group
     </button>
+        <!-- Add User button (only for groups) -->
+    <button
+      v-if="isGroup"
+      class="add-user-button"
+      @click="toggleAddUserForm"
+    >
+      Add User
+    </button>
+
+    <!-- Add User form (shown when showAddUserForm === true) -->
+    <div
+      v-if="isGroup && showAddUserForm"
+      class="add-user-form"
+      @click.stop
+    >
+      <input
+        type="text"
+        placeholder="Username to add"
+        v-model="usernameToAdd"
+        @focus="disableAutoRefresh"
+        @input="disableAutoRefresh"
+        @blur="enableAutoRefresh"
+      />
+      <button @click="addUserToGroup">Add</button>
+      <button @click="cancelAddUser">Cancel</button>
+    </div>
     <!-- The scrollable area with messages -->
     <div class="messages-container" ref="messagesContainer">
       <h1>Messages</h1>
@@ -105,6 +131,10 @@ export default {
       selectedFile: null,
       isInteracting: false,
       reloadInterval: null,
+
+      // NEW DATA PROPERTIES
+      showAddUserForm: false,  // Toggle the form visibility
+      usernameToAdd: '',       // The username typed by the user
     };
   },
   async created() {
@@ -135,6 +165,7 @@ export default {
     });
 
     this.reloadInterval = setInterval(() => {
+      // Only reload if user not interacting
       if (!this.isInteracting) {
         window.location.reload();
       }
@@ -248,7 +279,7 @@ export default {
         console.error("❌ Error deleting message:", error);
       }
     },
-        async leaveGroup() {
+    async leaveGroup() {
       const token = localStorage.getItem("authToken");
       const conversationID = this.$route.params.c_id;
       if (!token || !conversationID) {
@@ -268,12 +299,137 @@ export default {
         console.error("❌ Error leaving group:", error);
       }
     },
-  },
+
+    // NEW METHODS BELOW
+
+    // Show/hide the add user form
+    toggleAddUserForm() {
+      this.showAddUserForm = !this.showAddUserForm;
+      // If opening the form, also temporarily disable auto-refresh
+      if (this.showAddUserForm) {
+        this.isInteracting = true;
+      } else {
+        this.isInteracting = false;
+      }
+    },
+
+    // Explicitly disable auto-refresh
+    disableAutoRefresh() {
+      this.isInteracting = true;
+    },
+
+    // Re-enable auto-refresh
+    enableAutoRefresh() {
+      // Only re-enable if the username field is empty
+      if (!this.usernameToAdd.trim()) {
+        this.isInteracting = false;
+      }
+    },
+
+    // Cancel the “Add User” action
+    cancelAddUser() {
+      this.showAddUserForm = false;
+      this.usernameToAdd = '';
+      this.isInteracting = false;
+    },
+
+    // Call POST /groups/:c_id/members endpoint to add user
+    async addUserToGroup() {
+      const token = localStorage.getItem("authToken");
+      const conversationID = this.$route.params.c_id;
+      if (!token || !conversationID) {
+        console.warn("🚨 Missing token or conversation ID. Cannot add user.");
+        return;
+      }
+
+      // Basic validation
+      if (!this.usernameToAdd.trim()) {
+        alert("Please enter a valid username.");
+        return;
+      }
+
+      try {
+        const data = {
+          usernames: [this.usernameToAdd.trim()]
+        };
+        const response = await axios.post(
+          `http://localhost:3000/groups/${conversationID}/members`,
+          data,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        console.log("✅ User(s) added:", response.data.added_users);
+
+        // Feedback to the user
+        alert(`User '${this.usernameToAdd.trim()}' added successfully!`);
+
+        // Reset form
+        this.usernameToAdd = '';
+        this.showAddUserForm = false;
+        this.isInteracting = false;
+
+        // Optional: Reload page to see updated members, or do something else
+        // window.location.reload();
+
+      } catch (error) {
+        console.error("❌ Error adding user to group:", error);
+        if (error.response && error.response.data) {
+          alert(`Failed to add user: ${error.response.data}`);
+        } else {
+          alert("Error adding user. Check console for details.");
+        }
+      }
+    },
+  }
 };
 </script>
 
 
 <style scoped>
+/* Position the "Add User" button near the "Leave Group" button */
+.add-user-button {
+  position: fixed;
+  top: 100px; /* Just below the "Leave Group" button (adjust as needed) */
+  right: 25px;
+  z-index: 999;
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 15px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.add-user-button:hover {
+  background-color: #388e3c;
+}
+
+/* The form container that appears for adding a user */
+.add-user-form {
+  position: fixed;
+  top: 150px; /* Just below the "Add User" button */
+  right: 25px;
+  z-index: 1000;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 10px;
+  width: 200px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.add-user-form input {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.add-user-form button {
+  margin-right: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
 .leave-group-button {
   position: fixed;      /* Fix position relative to viewport */
   top: 50px;
