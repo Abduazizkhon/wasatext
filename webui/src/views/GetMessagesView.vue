@@ -1,5 +1,13 @@
 <template>
   <div class="page-wrapper">
+      <!-- 1) This is our Leave Group button, shown only if it is a group. -->
+    <button
+      v-if="isGroup"
+      class="leave-group-button"
+      @click="leaveGroup"
+    >
+      Leave Group
+    </button>
     <!-- The scrollable area with messages -->
     <div class="messages-container" ref="messagesContainer">
       <h1>Messages</h1>
@@ -240,12 +248,49 @@ export default {
         console.error("❌ Error deleting message:", error);
       }
     },
+        async leaveGroup() {
+      const token = localStorage.getItem("authToken");
+      const conversationID = this.$route.params.c_id;
+      if (!token || !conversationID) {
+        console.warn("🚨 Missing token or conversation ID. Cannot leave group.");
+        return;
+      }
+
+      try {
+        await axios.delete(
+          `http://localhost:3000/groups/${conversationID}/leave`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log("✅ Group left successfully.");
+        // Redirect to conversation list after leaving
+        this.$router.push("/conversations");
+      } catch (error) {
+        console.error("❌ Error leaving group:", error);
+      }
+    },
   },
 };
 </script>
 
 
 <style scoped>
+.leave-group-button {
+  position: fixed;      /* Fix position relative to viewport */
+  top: 50px;
+  right: 25px;
+  z-index: 999;         /* Ensure it stays on top of other elements */
+  background-color: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 15px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.leave-group-button:hover {
+  background-color: #c62828;
+}
 /* Add a button for delete functionality */
 .delete-button {
   background-color: red;
