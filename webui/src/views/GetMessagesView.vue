@@ -34,6 +34,32 @@
       <button @click="addUserToGroup">Add</button>
       <button @click="cancelAddUser">Cancel</button>
     </div>
+        <!-- 1) New: "Set Name" button -->
+    <button
+      v-if="isGroup"
+      class="set-name-button"
+      @click="toggleSetNameForm"
+    >
+      Set Name
+    </button>
+
+    <!-- 2) New: "Set Name" form -->
+    <div
+      v-if="isGroup && showSetNameForm"
+      class="set-name-form"
+      @click.stop
+    >
+      <input
+        type="text"
+        placeholder="New Group Name"
+        v-model="newGroupName"
+        @focus="disableAutoRefresh"
+        @input="disableAutoRefresh"
+        @blur="enableAutoRefresh"
+      />
+      <button @click="updateGroupName">Save</button>
+      <button @click="cancelSetName">Cancel</button>
+    </div>
     <!-- The scrollable area with messages -->
     <div class="messages-container" ref="messagesContainer">
       <h1>Messages</h1>
@@ -135,6 +161,8 @@ export default {
       // NEW DATA PROPERTIES
       showAddUserForm: false,  // Toggle the form visibility
       usernameToAdd: '',       // The username typed by the user
+      showSetNameForm: false,
+      newGroupName: '',
     };
   },
   async created() {
@@ -380,12 +408,118 @@ export default {
         }
       }
     },
+        // -----------------------------
+    //  NEW: Set Name feature below 
+    // -----------------------------
+
+    // Toggle the "Set Name" form
+    toggleSetNameForm() {
+      this.showSetNameForm = !this.showSetNameForm;
+      // Temporarily disable auto-refresh if form is open
+      if (this.showSetNameForm) {
+        this.isInteracting = true;
+      } else {
+        this.isInteracting = false;
+      }
+    },
+
+    // Cancel the "Set Name" action
+    cancelSetName() {
+      this.showSetNameForm = false;
+      this.newGroupName = '';
+      this.isInteracting = false;
+    },
+
+    // PUT /groups/:c_id/name to update the group name
+    async updateGroupName() {
+      const token = localStorage.getItem("authToken");
+      const conversationID = this.$route.params.c_id;
+
+      if (!token || !conversationID) {
+        console.warn("🚨 Missing token or conversation ID. Cannot set group name.");
+        return;
+      }
+
+      // Basic validation
+      if (!this.newGroupName.trim()) {
+        alert("Please enter a valid group name.");
+        return;
+      }
+
+      try {
+        // The API expects { new_name: "<name>" }
+        await axios.put(
+          `http://localhost:3000/groups/${conversationID}/name`,
+          { new_name: this.newGroupName.trim() },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        alert(`Group name updated to: "${this.newGroupName.trim()}"`);
+        this.showSetNameForm = false;
+        this.isInteracting = false;
+
+        // Optionally reload page or do something else
+        // window.location.reload();
+
+      } catch (error) {
+        console.error("❌ Error setting group name:", error);
+        if (error.response && error.response.data) {
+          alert(`Failed to set group name: ${error.response.data}`);
+        } else {
+          alert("Error setting group name. Check console for details.");
+        }
+      }
+    }
   }
 };
 </script>
 
 
 <style scoped>
+/* "Set Name" button */
+.set-name-button {
+  position: fixed;
+  top: 150px; /* Just below the "Add User" button (adjust as needed) */
+  right: 25px;
+  z-index: 999;
+  background-color: #ff9800; /* orange-ish */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 15px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.set-name-button:hover {
+  background-color: #f57c00;
+}
+
+/* "Set Name" form */
+.set-name-form {
+  position: fixed;
+  top: 200px; /* Just below the button */
+  right: 25px;
+  z-index: 1000;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 10px;
+  width: 200px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.set-name-form input {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.set-name-form button {
+  margin-right: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
 /* Position the "Add User" button near the "Leave Group" button */
 .add-user-button {
   position: fixed;
