@@ -41,7 +41,8 @@ const logout = () => {
 								:class="{ disabled: !isAuthenticated }">
 								Chats
 							</RouterLink>
-						</li>
+						</li> 
+						<!--
 						<li class="nav-item">
 							<RouterLink 
 								to="/groups" 
@@ -55,6 +56,7 @@ const logout = () => {
 								Profile
 							</RouterLink>
 						</li>
+						-->
 						<li v-if="!isAuthenticated" class="nav-item">
 							<RouterLink to="/login" class="nav-link">Login</RouterLink>
 						</li>

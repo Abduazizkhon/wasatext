@@ -60,6 +60,33 @@
       <button @click="updateGroupName">Save</button>
       <button @click="cancelSetName">Cancel</button>
     </div>
+
+        <!-- 1) New: Set Photo button -->
+    <button
+      v-if="isGroup"
+      class="set-photo-button"
+      @click="toggleSetPhotoForm"
+    >
+      Set Photo
+    </button>
+
+    <!-- 2) New: Set Photo form (shows when showSetPhotoForm === true) -->
+    <div
+      v-if="isGroup && showSetPhotoForm"
+      class="set-photo-form"
+      @click.stop
+    >
+    <input
+    type="file"
+    accept="image/*"
+    @click="onPhotoInputClick"
+    @change="handleGroupPhotoChange"
+    />
+      <button @click="updateGroupPhoto">Save</button>
+      <button @click="cancelSetPhoto">Cancel</button>
+    </div>
+    
+
     <!-- The scrollable area with messages -->
     <div class="messages-container" ref="messagesContainer">
       <h1>Messages</h1>
@@ -163,6 +190,9 @@ export default {
       usernameToAdd: '',       // The username typed by the user
       showSetNameForm: false,
       newGroupName: '',
+      // NEW: for "Set Photo"
+      showSetPhotoForm: false,     // Toggle the form
+      newGroupPhotoFile: null,     // Hold the file user selected
     };
   },
   async created() {
@@ -469,13 +499,151 @@ export default {
           alert("Error setting group name. Check console for details.");
         }
       }
-    }
-  }
+    },
+
+    // -----------------------------
+    // NEW: Set Photo feature below
+    // -----------------------------
+      onPhotoInputClick() {
+    this.isInteracting = true;
+  },
+
+  handleGroupPhotoChange(event) {
+    this.newGroupPhotoFile = event.target.files[0] || null;
+    // Keep isInteracting = true for now.
+    // If user cancels the file dialog, you may not get a change event,
+    // but at least the page won't reload in the middle of picking a file.
+  },
+
+  cancelSetPhoto() {
+    // If user hits "Cancel" in your own form, then set isInteracting = false
+    this.showSetPhotoForm = false;
+    this.newGroupPhotoFile = null;
+    this.isInteracting = false;  
+  },
+
+    // Toggle the "Set Photo" form
+    toggleSetPhotoForm() {
+      this.showSetPhotoForm = !this.showSetPhotoForm;
+      if (this.showSetPhotoForm) {
+        this.isInteracting = true; // Stop auto-refresh
+      } else {
+        this.isInteracting = false;
+      }
+    },
+
+    // Cancel the "Set Photo" action
+    cancelSetPhoto() {
+      this.showSetPhotoForm = false;
+      this.newGroupPhotoFile = null;
+      this.isInteracting = false;
+    },
+
+    // Handle file selection for the group photo
+    handleGroupPhotoChange(event) {
+      this.newGroupPhotoFile = event.target.files[0] || null;
+      // Optionally disable auto-refresh on file selection
+      this.isInteracting = true;
+    },
+
+    // PUT /conversations/:c_id/set-group-photo with the chosen file
+    async updateGroupPhoto() {
+      const token = localStorage.getItem("authToken");
+      const conversationID = this.$route.params.c_id;
+
+      if (!token || !conversationID) {
+        console.warn("🚨 Missing token or conversation ID. Cannot set group photo.");
+        return;
+      }
+
+      // Ensure a file is chosen
+      if (!this.newGroupPhotoFile) {
+        alert("Please select a photo file.");
+        return;
+      }
+
+      try {
+        const formData = new FormData();
+        // The API endpoint expects "photo" as the field name
+        formData.append("photo", this.newGroupPhotoFile);
+
+        await axios.put(
+          `http://localhost:3000/conversations/${conversationID}/set-group-photo`,
+          formData,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "multipart/form-data",
+            },
+          }
+        );
+
+        alert("✅ Group photo updated successfully!");
+        this.showSetPhotoForm = false;
+        this.newGroupPhotoFile = null;
+        this.isInteracting = false;
+
+        // Optionally reload
+        // window.location.reload();
+      } catch (error) {
+        console.error("❌ Error setting group photo:", error);
+        if (error.response && error.response.data) {
+          alert(`Failed to set group photo: ${error.response.data}`);
+        } else {
+          alert("Error setting group photo. Check console for details.");
+        }
+      }
+    },
+  },
 };
 </script>
 
 
 <style scoped>
+/* "Set Photo" button (placed below the Set Name button) */
+.set-photo-button {
+  position: fixed;
+  top: 200px; /* Adjust as needed */
+  right: 25px;
+  z-index: 999;
+  background-color: #2196f3; /* blue-ish */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 15px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.set-photo-button:hover {
+  background-color: #1976d2;
+}
+
+/* "Set Photo" form (below the button) */
+.set-photo-form {
+  position: fixed;
+  top: 250px; /* Just below the button */
+  right: 25px;
+  z-index: 1000;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 10px;
+  width: 200px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.set-photo-form input {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.set-photo-form button {
+  margin-right: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
 /* "Set Name" button */
 .set-name-button {
   position: fixed;
