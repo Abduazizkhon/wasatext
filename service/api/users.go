@@ -179,67 +179,67 @@ func (rt *_router) setMyPhoto(w http.ResponseWriter, r *http.Request, ps httprou
 }
 
 func (rt *_router) getUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-    userID := ps.ByName("id")
-    if userID == "" {
-        http.Error(w, "User ID required", http.StatusBadRequest)
-        return
-    }
+	userID := ps.ByName("id")
+	if userID == "" {
+		http.Error(w, "User ID required", http.StatusBadRequest)
+		return
+	}
 
-    user, err := rt.db.GetUserId(userID)
-    if err != nil {
-        if err == sql.ErrNoRows {
-            http.Error(w, "User not found", http.StatusNotFound)
-            return
-        }
-        http.Error(w, "Error fetching user", http.StatusInternalServerError)
-        return
-    }
+	user, err := rt.db.GetUserId(userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Error fetching user", http.StatusInternalServerError)
+		return
+	}
 
-    // ✅ Ensure `photo` is properly extracted as a string
-    var photoURL string
-    if user.Photo.Valid {
-        photoURL = user.Photo.String
-    } else {
-        photoURL = "" // Default if no photo is set
-    }
+	// ✅ Ensure `photo` is properly extracted as a string
+	var photoURL string
+	if user.Photo.Valid {
+		photoURL = user.Photo.String
+	} else {
+		photoURL = "" // Default if no photo is set
+	}
 
-    response := map[string]interface{}{
-        "id":       user.ID,
-        "username": user.Username,
-        "photo":    photoURL, // ✅ Now a plain string
-    }
+	response := map[string]interface{}{
+		"id":       user.ID,
+		"username": user.Username,
+		"photo":    photoURL, // ✅ Now a plain string
+	}
 
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(response)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 // This endpoint resolves the username to user ID
 func (rt *_router) getUserIDByUsername(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-    username := ps.ByName("username")
-    if username == "" {
-        context.Logger.Error("Username is required")
-        http.Error(w, "Username is required", http.StatusBadRequest)
-        return
-    }
+	username := ps.ByName("username")
+	if username == "" {
+		context.Logger.Error("Username is required")
+		http.Error(w, "Username is required", http.StatusBadRequest)
+		return
+	}
 
-    // Query the database to get the user ID by username
-    userID, err := rt.db.GetUserIDByUsername(username)
-    if err != nil {
-        if err == sql.ErrNoRows {
-            context.Logger.WithError(err).Error("User not found")
-            http.Error(w, "User not found", http.StatusNotFound)
-            return
-        }
-        context.Logger.WithError(err).Error("Error fetching user ID")
-        http.Error(w, "Internal server error", http.StatusInternalServerError)
-        return
-    }
+	// Query the database to get the user ID by username
+	userID, err := rt.db.GetUserIDByUsername(username)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			context.Logger.WithError(err).Error("User not found")
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		context.Logger.WithError(err).Error("Error fetching user ID")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 
-    // Respond with the user ID
-    w.WriteHeader(http.StatusOK)
-    err = json.NewEncoder(w).Encode(map[string]string{"user_id": userID})
-    if err != nil {
-        context.Logger.WithError(err).Error("Error encoding response")
-        http.Error(w, "Error encoding response", http.StatusInternalServerError)
-    }
+	// Respond with the user ID
+	w.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(w).Encode(map[string]string{"user_id": userID})
+	if err != nil {
+		context.Logger.WithError(err).Error("Error encoding response")
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+	}
 }

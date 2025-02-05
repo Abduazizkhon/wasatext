@@ -1,4 +1,3 @@
-
 package api
 
 import (
@@ -17,32 +16,32 @@ import (
 )
 
 func (rt *_router) getMyConversations(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-    // Log the request
-    context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
+	// Log the request
+	context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
 
-    // Retrieve user_id from the path parameters
-    userID := ps.ByName("id")
-    if userID == "" {
-        context.Logger.Error("User ID is required in the path")
-        http.Error(w, "User ID is required in the path", http.StatusBadRequest)
-        return
-    }
+	// Retrieve user_id from the path parameters
+	userID := ps.ByName("id")
+	if userID == "" {
+		context.Logger.Error("User ID is required in the path")
+		http.Error(w, "User ID is required in the path", http.StatusBadRequest)
+		return
+	}
 
-    // Fetch conversations from the database
-    conversations, err := rt.db.GetMyConversations_db(userID)
-    if err != nil {
-        context.Logger.WithError(err).Error("Error fetching conversations")
-        http.Error(w, "Internal server error", http.StatusInternalServerError)
-        return
-    }
+	// Fetch conversations from the database
+	conversations, err := rt.db.GetMyConversations_db(userID)
+	if err != nil {
+		context.Logger.WithError(err).Error("Error fetching conversations")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 
-    // Respond with the list of conversations
-    w.WriteHeader(http.StatusOK)
-    err = json.NewEncoder(w).Encode(conversations)
-    if err != nil {
-        context.Logger.WithError(err).Error("Error encoding response")
-        http.Error(w, "Error encoding response", http.StatusInternalServerError)
-    }
+	// Respond with the list of conversations
+	w.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(w).Encode(conversations)
+	if err != nil {
+		context.Logger.WithError(err).Error("Error encoding response")
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+	}
 }
 func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
 	// Log the request
@@ -178,6 +177,7 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 		"c_id":    newConvo.ID,
 	})
 }
+
 // update username of a user. Also change the name of that user in all convos
 
 func (rt *_router) getConversation(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context reqcontext.RequestContext) {
@@ -208,240 +208,240 @@ func (rt *_router) getConversation(w http.ResponseWriter, r *http.Request, ps ht
 }
 
 func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-    context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
+	context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
 
-    // Extract conversation ID
-    conversationIDStr := ps.ByName("conversation_id")
-    conversationID, err := strconv.Atoi(conversationIDStr)
-    if err != nil || conversationID <= 0 {
-        context.Logger.WithError(err).Error("Invalid conversation ID")
-        http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
-        return
-    }
-    context.Logger.Infof("Extracted conversation_id: %d", conversationID)
+	// Extract conversation ID
+	conversationIDStr := ps.ByName("conversation_id")
+	conversationID, err := strconv.Atoi(conversationIDStr)
+	if err != nil || conversationID <= 0 {
+		context.Logger.WithError(err).Error("Invalid conversation ID")
+		http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
+		return
+	}
+	context.Logger.Infof("Extracted conversation_id: %d", conversationID)
 
-    // Extract sender ID (authenticated user)
-    senderID := context.UserID
-    if senderID == "" {
-        context.Logger.Error("Sender ID is required")
-        http.Error(w, "Sender ID is required", http.StatusUnauthorized)
-        return
-    }
-    context.Logger.Infof("Extracted sender_id: %s", senderID)
+	// Extract sender ID (authenticated user)
+	senderID := context.UserID
+	if senderID == "" {
+		context.Logger.Error("Sender ID is required")
+		http.Error(w, "Sender ID is required", http.StatusUnauthorized)
+		return
+	}
+	context.Logger.Infof("Extracted sender_id: %s", senderID)
 
-    // Ensure the sender is a participant in the conversation
-    isMember, err := rt.db.IsUserInConversation(senderID, conversationID)
-    if err != nil {
-        context.Logger.WithError(err).Error("Error checking if user is in conversation")
-        http.Error(w, "Internal server error", http.StatusInternalServerError)
-        return
-    }
-    if !isMember {
-        context.Logger.Error("Sender is not part of the conversation")
-        http.Error(w, "Sender is not part of the conversation", http.StatusForbidden)
-        return
-    }
+	// Ensure the sender is a participant in the conversation
+	isMember, err := rt.db.IsUserInConversation(senderID, conversationID)
+	if err != nil {
+		context.Logger.WithError(err).Error("Error checking if user is in conversation")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		context.Logger.Error("Sender is not part of the conversation")
+		http.Error(w, "Sender is not part of the conversation", http.StatusForbidden)
+		return
+	}
 
-    var content, contentType string
-    file, header, fileErr := r.FormFile("file") // Check for file upload
+	var content, contentType string
+	file, header, fileErr := r.FormFile("file") // Check for file upload
 
-    if fileErr == nil { // If a file is uploaded
-        defer file.Close()
+	if fileErr == nil { // If a file is uploaded
+		defer file.Close()
 
-        // Validate file type
-        fileExt := strings.ToLower(filepath.Ext(header.Filename))
-        allowedExts := map[string]string{".jpg": "photo", ".jpeg": "photo", ".png": "photo", ".gif": "gif"}
+		// Validate file type
+		fileExt := strings.ToLower(filepath.Ext(header.Filename))
+		allowedExts := map[string]string{".jpg": "photo", ".jpeg": "photo", ".png": "photo", ".gif": "gif"}
 
-        fileType, valid := allowedExts[fileExt]
-        if !valid {
-            context.Logger.Error("Invalid file type")
-            http.Error(w, "Invalid file type", http.StatusBadRequest)
-            return
-        }
+		fileType, valid := allowedExts[fileExt]
+		if !valid {
+			context.Logger.Error("Invalid file type")
+			http.Error(w, "Invalid file type", http.StatusBadRequest)
+			return
+		}
 
-        // Save the uploaded file
-        uploadDir := "webui/public/uploads"
-        os.MkdirAll(uploadDir, os.ModePerm)
+		// Save the uploaded file
+		uploadDir := "webui/public/uploads"
+		os.MkdirAll(uploadDir, os.ModePerm)
 
-        // Generate unique filename
-        fileName := senderID + "_" + strconv.Itoa(int(time.Now().Unix())) + fileExt
-        filePath := filepath.Join(uploadDir, fileName)
+		// Generate unique filename
+		fileName := senderID + "_" + strconv.Itoa(int(time.Now().Unix())) + fileExt
+		filePath := filepath.Join(uploadDir, fileName)
 
-        out, err := os.Create(filePath)
-        if err != nil {
-            context.Logger.WithError(err).Error("Failed to save file")
-            http.Error(w, "Failed to save file", http.StatusInternalServerError)
-            return
-        }
-        defer out.Close()
-        _, err = io.Copy(out, file)
-        if err != nil {
-            context.Logger.WithError(err).Error("Failed to write file")
-            http.Error(w, "Failed to save file", http.StatusInternalServerError)
-            return
-        }
+		out, err := os.Create(filePath)
+		if err != nil {
+			context.Logger.WithError(err).Error("Failed to save file")
+			http.Error(w, "Failed to save file", http.StatusInternalServerError)
+			return
+		}
+		defer out.Close()
+		_, err = io.Copy(out, file)
+		if err != nil {
+			context.Logger.WithError(err).Error("Failed to write file")
+			http.Error(w, "Failed to save file", http.StatusInternalServerError)
+			return
+		}
 
-        // Set message content as file path and contentType
-        content = "/uploads/" + fileName
-        contentType = fileType
-    } else {
-        // Handle text message
-        content = r.FormValue("content")
-        contentType = r.FormValue("content_type")
+		// Set message content as file path and contentType
+		content = "/uploads/" + fileName
+		contentType = fileType
+	} else {
+		// Handle text message
+		content = r.FormValue("content")
+		contentType = r.FormValue("content_type")
 
-        if content == "" || contentType == "" {
-            context.Logger.Error("Invalid input: content and content_type are required")
-            http.Error(w, "Invalid input: content and content_type are required", http.StatusBadRequest)
-            return
-        }
-    }
+		if content == "" || contentType == "" {
+			context.Logger.Error("Invalid input: content and content_type are required")
+			http.Error(w, "Invalid input: content and content_type are required", http.StatusBadRequest)
+			return
+		}
+	}
 
-    // Fetch the username and photo from the database using the senderID
-    user, err := rt.db.GetUserByID(senderID)
-    if err != nil {
-        context.Logger.WithError(err).Error("Failed to fetch user")
-        http.Error(w, "Internal server error", http.StatusInternalServerError)
-        return
-    }
+	// Fetch the username and photo from the database using the senderID
+	user, err := rt.db.GetUserByID(senderID)
+	if err != nil {
+		context.Logger.WithError(err).Error("Failed to fetch user")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 
-    // Save message to database
-    err = rt.db.SendMessageWithType(conversationID, senderID, content, contentType)
-    if err != nil {
-        context.Logger.WithError(err).Error("Error saving message")
-        http.Error(w, "Internal server error", http.StatusInternalServerError)
-        return
-    }
+	// Save message to database
+	err = rt.db.SendMessageWithType(conversationID, senderID, content, contentType)
+	if err != nil {
+		context.Logger.WithError(err).Error("Error saving message")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 
-    // Send the response with the username, photo, and message content
-    w.WriteHeader(http.StatusCreated)
-    _ = json.NewEncoder(w).Encode(map[string]interface{}{
-        "message":        "Message sent successfully",
-        "content_type":   contentType,
-        "content":        content,
-        "sender_username": user.Username,    // Now using the actual username from GetUserByID
-        "sender_photo":   user.Photo.String, // Return the photo (URL or empty if no photo)
-    })
+	// Send the response with the username, photo, and message content
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":         "Message sent successfully",
+		"content_type":    contentType,
+		"content":         content,
+		"sender_username": user.Username,     // Now using the actual username from GetUserByID
+		"sender_photo":    user.Photo.String, // Return the photo (URL or empty if no photo)
+	})
 }
 
 func (rt *_router) getMessages(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-    // Extract conversation ID from the path parameters
-    conversationID, err := strconv.Atoi(ps.ByName("c_id"))
-    if err != nil || conversationID <= 0 {
-        context.Logger.WithError(err).Error("Invalid conversation ID")
-        w.WriteHeader(http.StatusBadRequest)
-        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid conversation ID"})
-        return
-    }
+	// Extract conversation ID from the path parameters
+	conversationID, err := strconv.Atoi(ps.ByName("c_id"))
+	if err != nil || conversationID <= 0 {
+		context.Logger.WithError(err).Error("Invalid conversation ID")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid conversation ID"})
+		return
+	}
 
-    // Fetch the conversation details
-    conversation, err := rt.db.GetConversationById(conversationID)
-    if err != nil {
-        context.Logger.WithError(err).Error("Failed to fetch conversation")
-        w.WriteHeader(http.StatusInternalServerError)
-        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch conversation"})
-        return
-    }
+	// Fetch the conversation details
+	conversation, err := rt.db.GetConversationById(conversationID)
+	if err != nil {
+		context.Logger.WithError(err).Error("Failed to fetch conversation")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch conversation"})
+		return
+	}
 
-    if conversation.ID == 0 {
-        w.WriteHeader(http.StatusNotFound)
-        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Conversation not found"})
-        return
-    }
+	if conversation.ID == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Conversation not found"})
+		return
+	}
 
-    // Fetch all messages in the conversation
-    messages, err := rt.db.GetMessagesByConversationId(conversationID)
-    if err != nil {
-        context.Logger.WithError(err).Error("Failed to fetch messages")
-        w.WriteHeader(http.StatusInternalServerError)
-        _ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch messages"})
-        return
-    }
+	// Fetch all messages in the conversation
+	messages, err := rt.db.GetMessagesByConversationId(conversationID)
+	if err != nil {
+		context.Logger.WithError(err).Error("Failed to fetch messages")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch messages"})
+		return
+	}
 
-    // Ensure each message has a valid sender_photo, otherwise use default
-    for i, message := range messages {
-        if !message.SenderPhoto.Valid || message.SenderPhoto.String == "" {
-            messages[i].SenderPhoto.String = "/default-profile.png" // Set to default profile image
-        }
-    }
+	// Ensure each message has a valid sender_photo, otherwise use default
+	for i, message := range messages {
+		if !message.SenderPhoto.Valid || message.SenderPhoto.String == "" {
+			messages[i].SenderPhoto.String = "/default-profile.png" // Set to default profile image
+		}
+	}
 
-    // Prepare the response
-    response := map[string]interface{}{
-        "conversation": conversation,
-        "messages":     messages,
-    }
+	// Prepare the response
+	response := map[string]interface{}{
+		"conversation": conversation,
+		"messages":     messages,
+	}
 
-    // Respond with the conversation and messages
-    w.WriteHeader(http.StatusOK)
-    _ = json.NewEncoder(w).Encode(response)
+	// Respond with the conversation and messages
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func (rt *_router) deleteMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-    context.Logger.Info("Request received: DELETE message")
+	context.Logger.Info("Request received: DELETE message")
 
-    // Extract conversation ID and message ID
-    conversationIDStr := ps.ByName("conversation_id")
-    messageIDStr := ps.ByName("message_id")
+	// Extract conversation ID and message ID
+	conversationIDStr := ps.ByName("conversation_id")
+	messageIDStr := ps.ByName("message_id")
 
-    if conversationIDStr == "" || messageIDStr == "" {
-        context.Logger.Error("Missing conversation_id or message_id in path")
-        http.Error(w, "Invalid conversation ID or message ID", http.StatusBadRequest)
-        return
-    }
+	if conversationIDStr == "" || messageIDStr == "" {
+		context.Logger.Error("Missing conversation_id or message_id in path")
+		http.Error(w, "Invalid conversation ID or message ID", http.StatusBadRequest)
+		return
+	}
 
-    conversationID, err := strconv.Atoi(conversationIDStr)
-    if err != nil || conversationID <= 0 {
-        context.Logger.WithError(err).Error("Invalid conversation ID")
-        http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
-        return
-    }
+	conversationID, err := strconv.Atoi(conversationIDStr)
+	if err != nil || conversationID <= 0 {
+		context.Logger.WithError(err).Error("Invalid conversation ID")
+		http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
+		return
+	}
 
-    messageID, err := strconv.Atoi(messageIDStr)
-    if err != nil || messageID <= 0 {
-        context.Logger.WithError(err).Error("Invalid message ID")
-        http.Error(w, "Invalid message ID", http.StatusBadRequest)
-        return
-    }
+	messageID, err := strconv.Atoi(messageIDStr)
+	if err != nil || messageID <= 0 {
+		context.Logger.WithError(err).Error("Invalid message ID")
+		http.Error(w, "Invalid message ID", http.StatusBadRequest)
+		return
+	}
 
-    userID := context.UserID
-    if userID == "" {
-        context.Logger.Error("User not authenticated")
-        http.Error(w, "User not authenticated", http.StatusUnauthorized)
-        return
-    }
+	userID := context.UserID
+	if userID == "" {
+		context.Logger.Error("User not authenticated")
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
 
-    // ✅ Ensure the message exists
-    exists, err := rt.db.DoesMessageExist(messageID)
-    if err != nil {
-        context.Logger.WithError(err).Error("Error checking message existence")
-        http.Error(w, "Internal server error", http.StatusInternalServerError)
-        return
-    }
-    if !exists {
-        context.Logger.Error("Message not found")
-        http.Error(w, "Message not found", http.StatusNotFound)
-        return
-    }
+	// ✅ Ensure the message exists
+	exists, err := rt.db.DoesMessageExist(messageID)
+	if err != nil {
+		context.Logger.WithError(err).Error("Error checking message existence")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	if !exists {
+		context.Logger.Error("Message not found")
+		http.Error(w, "Message not found", http.StatusNotFound)
+		return
+	}
 
-    // ✅ Convert comments to normal messages before deleting
-    err = rt.db.ConvertCommentsToMessages(messageID, conversationID)
-    if err != nil {
-        context.Logger.WithError(err).Error("Error converting comments to messages")
-        http.Error(w, "Internal server error", http.StatusInternalServerError)
-        return
-    }
+	// ✅ Convert comments to normal messages before deleting
+	err = rt.db.ConvertCommentsToMessages(messageID, conversationID)
+	if err != nil {
+		context.Logger.WithError(err).Error("Error converting comments to messages")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 
-    // ✅ Delete the message
-    err = rt.db.DeleteMessage(messageID)
-    if err != nil {
-        context.Logger.WithError(err).Error("Error deleting message")
-        http.Error(w, "Internal server error", http.StatusInternalServerError)
-        return
-    }
+	// ✅ Delete the message
+	err = rt.db.DeleteMessage(messageID)
+	if err != nil {
+		context.Logger.WithError(err).Error("Error deleting message")
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 
-    w.WriteHeader(http.StatusOK)
-    _ = json.NewEncoder(w).Encode(map[string]string{
-        "message": "Message deleted successfully, comments converted to normal messages",
-    })
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"message": "Message deleted successfully, comments converted to normal messages",
+	})
 }
 
 func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
@@ -536,308 +536,308 @@ func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps htt
 
 // createGroup handles the creation of a new group conversation
 func (rt *_router) createGroup(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-    creatorID := context.UserID // Get authenticated user (creator)
-    if creatorID == "" {
-        http.Error(w, "User not authenticated", http.StatusUnauthorized)
-        return
-    }
+	creatorID := context.UserID // Get authenticated user (creator)
+	if creatorID == "" {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
 
-    // Parse the incoming form data (10MB limit)
-    err := r.ParseMultipartForm(10 << 20)
-    if err != nil {
-        http.Error(w, "Error parsing form", http.StatusBadRequest)
-        return
-    }
+	// Parse the incoming form data (10MB limit)
+	err := r.ParseMultipartForm(10 << 20)
+	if err != nil {
+		http.Error(w, "Error parsing form", http.StatusBadRequest)
+		return
+	}
 
-    groupName := r.FormValue("group_name")
-    usernamesRaw := r.FormValue("usernames")
+	groupName := r.FormValue("group_name")
+	usernamesRaw := r.FormValue("usernames")
 
-    // Parse usernames from JSON string
-    var usernames []string
-    if usernamesRaw != "" {
-        err = json.Unmarshal([]byte(usernamesRaw), &usernames)
-        if err != nil {
-            http.Error(w, "Invalid usernames format", http.StatusBadRequest)
-            return
-        }
-    }
+	// Parse usernames from JSON string
+	var usernames []string
+	if usernamesRaw != "" {
+		err = json.Unmarshal([]byte(usernamesRaw), &usernames)
+		if err != nil {
+			http.Error(w, "Invalid usernames format", http.StatusBadRequest)
+			return
+		}
+	}
 
-    if groupName == "" || len(usernames) == 0 {
-        http.Error(w, "Invalid input: group_name and usernames are required", http.StatusBadRequest)
-        return
-    }
+	if groupName == "" || len(usernames) == 0 {
+		http.Error(w, "Invalid input: group_name and usernames are required", http.StatusBadRequest)
+		return
+	}
 
-    // Handle the uploaded photo
-    var photoPath string
-    photoFile, _, err := r.FormFile("photo") // Get the uploaded file
-    if err == nil {
-        // Save the photo to disk and get the file path
-        _, filePath, saveErr := rt.db.SaveUploadedFile(photoFile, r.MultipartForm.File["photo"][0], creatorID)
-        if saveErr != nil {
-            http.Error(w, "Error saving photo", http.StatusInternalServerError)
-            return
-        }
-        photoPath = filePath
-    }
+	// Handle the uploaded photo
+	var photoPath string
+	photoFile, _, err := r.FormFile("photo") // Get the uploaded file
+	if err == nil {
+		// Save the photo to disk and get the file path
+		_, filePath, saveErr := rt.db.SaveUploadedFile(photoFile, r.MultipartForm.File["photo"][0], creatorID)
+		if saveErr != nil {
+			http.Error(w, "Error saving photo", http.StatusInternalServerError)
+			return
+		}
+		photoPath = filePath
+	}
 
-    // Step 1: Create a new group conversation
-    newGroup, err := rt.db.CreateConversation_db(true, groupName, photoPath)
-    if err != nil {
-        http.Error(w, "Error creating group", http.StatusInternalServerError)
-        return
-    }
+	// Step 1: Create a new group conversation
+	newGroup, err := rt.db.CreateConversation_db(true, groupName, photoPath)
+	if err != nil {
+		http.Error(w, "Error creating group", http.StatusInternalServerError)
+		return
+	}
 
-    // Step 2: Add the creator to the group
-    err = rt.db.AddUsersToConversation(creatorID, newGroup.ID)
-    if err != nil {
-        http.Error(w, "Error adding creator to group", http.StatusInternalServerError)
-        return
-    }
+	// Step 2: Add the creator to the group
+	err = rt.db.AddUsersToConversation(creatorID, newGroup.ID)
+	if err != nil {
+		http.Error(w, "Error adding creator to group", http.StatusInternalServerError)
+		return
+	}
 
-    // Step 3: Fetch user IDs for given usernames and add them to the group
-    for _, username := range usernames {
-        user, err := rt.db.GetUser(username)
-        if err != nil {
-            if err == sql.ErrNoRows {
-                http.Error(w, "User '"+username+"' not found", http.StatusNotFound)
-                return
-            }
-            http.Error(w, "Error fetching user "+username, http.StatusInternalServerError)
-            return
-        }
+	// Step 3: Fetch user IDs for given usernames and add them to the group
+	for _, username := range usernames {
+		user, err := rt.db.GetUser(username)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				http.Error(w, "User '"+username+"' not found", http.StatusNotFound)
+				return
+			}
+			http.Error(w, "Error fetching user "+username, http.StatusInternalServerError)
+			return
+		}
 
-        err = rt.db.AddUsersToConversation(user.ID, newGroup.ID)
-        if err != nil {
-            http.Error(w, "Error adding user "+username+" to group", http.StatusInternalServerError)
-            return
-        }
-    }
+		err = rt.db.AddUsersToConversation(user.ID, newGroup.ID)
+		if err != nil {
+			http.Error(w, "Error adding user "+username+" to group", http.StatusInternalServerError)
+			return
+		}
+	}
 
-    // Step 4: Respond with success, group details, and members
-    w.WriteHeader(http.StatusCreated)
-    _ = json.NewEncoder(w).Encode(map[string]interface{}{
-        "message":    "Group created successfully",
-        "group_id":   newGroup.ID,
-        "c_id":       newGroup.ID,
-        "group_name": newGroup.Name,
-        "photo":      newGroup.Photo.String, // This should now correctly include the photo path
-        "members":    usernames,
-    })
+	// Step 4: Respond with success, group details, and members
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":    "Group created successfully",
+		"group_id":   newGroup.ID,
+		"c_id":       newGroup.ID,
+		"group_name": newGroup.Name,
+		"photo":      newGroup.Photo.String, // This should now correctly include the photo path
+		"members":    usernames,
+	})
 }
 
 func (rt *_router) addToGroup(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-    // Extract user making the request (must be part of the group)
-    requesterID := context.UserID
-    if requesterID == "" {
-        http.Error(w, "User not authenticated", http.StatusUnauthorized)
-        return
-    }
+	// Extract user making the request (must be part of the group)
+	requesterID := context.UserID
+	if requesterID == "" {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
 
-    // Extract group conversation ID (`c_id`) from the URL
-    conversationIDStr := ps.ByName("c_id")
-    conversationID, err := strconv.Atoi(conversationIDStr)
-    if err != nil || conversationID <= 0 {
-        http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
-        return
-    }
+	// Extract group conversation ID (`c_id`) from the URL
+	conversationIDStr := ps.ByName("c_id")
+	conversationID, err := strconv.Atoi(conversationIDStr)
+	if err != nil || conversationID <= 0 {
+		http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
+		return
+	}
 
-    // Parse request body to get the list of usernames to add
-    var input struct {
-        Usernames []string `json:"usernames"`  // List of usernames to add
-    }
-    err = json.NewDecoder(r.Body).Decode(&input)
-    if err != nil || len(input.Usernames) == 0 {
-        http.Error(w, "Invalid input: at least one username is required", http.StatusBadRequest)
-        return
-    }
+	// Parse request body to get the list of usernames to add
+	var input struct {
+		Usernames []string `json:"usernames"` // List of usernames to add
+	}
+	err = json.NewDecoder(r.Body).Decode(&input)
+	if err != nil || len(input.Usernames) == 0 {
+		http.Error(w, "Invalid input: at least one username is required", http.StatusBadRequest)
+		return
+	}
 
-    // Check if the requester is part of the group
-    isMember, err := rt.db.IsUserInConversation(requesterID, conversationID)
-    if err != nil {
-        http.Error(w, "Error checking membership", http.StatusInternalServerError)
-        return
-    }
-    if !isMember {
-        http.Error(w, "You must be a member of the group to add others", http.StatusForbidden)
-        return
-    }
+	// Check if the requester is part of the group
+	isMember, err := rt.db.IsUserInConversation(requesterID, conversationID)
+	if err != nil {
+		http.Error(w, "Error checking membership", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "You must be a member of the group to add others", http.StatusForbidden)
+		return
+	}
 
-    // Retrieve user IDs for each provided username
-    var addedUsers []string
-    for _, username := range input.Usernames {
-        user, err := rt.db.GetUser(username)
-        if err != nil {
-            if err == sql.ErrNoRows {
-                http.Error(w, "User not found: "+username, http.StatusNotFound)
-                return
-            }
-            http.Error(w, "Error retrieving user: "+username, http.StatusInternalServerError)
-            return
-        }
+	// Retrieve user IDs for each provided username
+	var addedUsers []string
+	for _, username := range input.Usernames {
+		user, err := rt.db.GetUser(username)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				http.Error(w, "User not found: "+username, http.StatusNotFound)
+				return
+			}
+			http.Error(w, "Error retrieving user: "+username, http.StatusInternalServerError)
+			return
+		}
 
-        // Check if the user is already in the group
-        alreadyMember, err := rt.db.IsUserInConversation(user.ID, conversationID)
-        if err != nil {
-            http.Error(w, "Error checking user membership", http.StatusInternalServerError)
-            return
-        }
-        if alreadyMember {
-            continue  // Skip users already in the group
-        }
+		// Check if the user is already in the group
+		alreadyMember, err := rt.db.IsUserInConversation(user.ID, conversationID)
+		if err != nil {
+			http.Error(w, "Error checking user membership", http.StatusInternalServerError)
+			return
+		}
+		if alreadyMember {
+			continue // Skip users already in the group
+		}
 
-        // Add user to the group
-        err = rt.db.AddUsersToConversation(user.ID, conversationID)
-        if err != nil {
-            http.Error(w, "Error adding user: "+username, http.StatusInternalServerError)
-            return
-        }
+		// Add user to the group
+		err = rt.db.AddUsersToConversation(user.ID, conversationID)
+		if err != nil {
+			http.Error(w, "Error adding user: "+username, http.StatusInternalServerError)
+			return
+		}
 
-        // Add to the response list
-        addedUsers = append(addedUsers, username)
-    }
+		// Add to the response list
+		addedUsers = append(addedUsers, username)
+	}
 
-    // Respond with success and list of added users
-    w.WriteHeader(http.StatusOK)
-    _ = json.NewEncoder(w).Encode(map[string]interface{}{
-        "message":     "Users added to group successfully",
-        "c_id":        conversationID,
-        "added_users": addedUsers,
-    })
+	// Respond with success and list of added users
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":     "Users added to group successfully",
+		"c_id":        conversationID,
+		"added_users": addedUsers,
+	})
 }
 
 func (rt *_router) leaveGroup(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx *reqcontext.RequestContext) {
-    userID := ctx.UserID
-    groupIDStr := ps.ByName("c_id") // Extract group (conversation) ID
+	userID := ctx.UserID
+	groupIDStr := ps.ByName("c_id") // Extract group (conversation) ID
 
-    // Convert groupID to integer
-    groupID, err := strconv.Atoi(groupIDStr)
-    if err != nil || groupID <= 0 {
-        http.Error(w, "Invalid group ID", http.StatusBadRequest)
-        return
-    }
+	// Convert groupID to integer
+	groupID, err := strconv.Atoi(groupIDStr)
+	if err != nil || groupID <= 0 {
+		http.Error(w, "Invalid group ID", http.StatusBadRequest)
+		return
+	}
 
-    // ✅ Ensure this is a valid group conversation
-    isGroup, err := rt.db.IsConversationGroup(groupID)
-    if err != nil {
-        http.Error(w, "Error checking group type", http.StatusInternalServerError)
-        return
-    }
-    if !isGroup {
-        http.Error(w, "This conversation is not a group", http.StatusBadRequest)
-        return
-    }
+	// ✅ Ensure this is a valid group conversation
+	isGroup, err := rt.db.IsConversationGroup(groupID)
+	if err != nil {
+		http.Error(w, "Error checking group type", http.StatusInternalServerError)
+		return
+	}
+	if !isGroup {
+		http.Error(w, "This conversation is not a group", http.StatusBadRequest)
+		return
+	}
 
-    // ✅ Check if the user is a member of the group
-    isMember, err := rt.db.IsUserInConversation(userID, groupID)
-    if err != nil {
-        http.Error(w, "Error checking user membership", http.StatusInternalServerError)
-        return
-    }
-    if !isMember {
-        http.Error(w, "User is not part of this group", http.StatusForbidden)
-        return
-    }
+	// ✅ Check if the user is a member of the group
+	isMember, err := rt.db.IsUserInConversation(userID, groupID)
+	if err != nil {
+		http.Error(w, "Error checking user membership", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "User is not part of this group", http.StatusForbidden)
+		return
+	}
 
-    // ✅ Remove the user from the group
-    err = rt.db.RemoveUserFromGroup(userID, groupID)
-    if err != nil {
-        http.Error(w, "Error leaving the group", http.StatusInternalServerError)
-        return
-    }
+	// ✅ Remove the user from the group
+	err = rt.db.RemoveUserFromGroup(userID, groupID)
+	if err != nil {
+		http.Error(w, "Error leaving the group", http.StatusInternalServerError)
+		return
+	}
 
-    // ✅ Check if the group is now empty
-    remainingMembers, err := rt.db.GetGroupMemberCount(groupID)
-    if err != nil {
-        http.Error(w, "Error checking remaining group members", http.StatusInternalServerError)
-        return
-    }
+	// ✅ Check if the group is now empty
+	remainingMembers, err := rt.db.GetGroupMemberCount(groupID)
+	if err != nil {
+		http.Error(w, "Error checking remaining group members", http.StatusInternalServerError)
+		return
+	}
 
-    // ✅ If no members are left, delete the group (optional)
-    if remainingMembers == 0 {
-        err = rt.db.DeleteGroup(groupID)
-        if err != nil {
-            http.Error(w, "Error deleting empty group", http.StatusInternalServerError)
-            return
-        }
-    }
+	// ✅ If no members are left, delete the group (optional)
+	if remainingMembers == 0 {
+		err = rt.db.DeleteGroup(groupID)
+		if err != nil {
+			http.Error(w, "Error deleting empty group", http.StatusInternalServerError)
+			return
+		}
+	}
 
-    // ✅ Respond with success
-    w.WriteHeader(http.StatusOK)
-    _ = json.NewEncoder(w).Encode(map[string]string{"message": "Successfully left the group"})
+	// ✅ Respond with success
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"message": "Successfully left the group"})
 }
 
 func (rt *_router) setGroupName(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-    userID := context.UserID // ✅ Get authenticated user
-    if userID == "" {
-        http.Error(w, "User not authenticated", http.StatusUnauthorized)
-        return
-    }
+	userID := context.UserID // ✅ Get authenticated user
+	if userID == "" {
+		http.Error(w, "User not authenticated", http.StatusUnauthorized)
+		return
+	}
 
-    // ✅ Extract group ID from URL
-    groupIDStr := ps.ByName("c_id")
-    groupID, err := strconv.Atoi(groupIDStr)
-    if err != nil || groupID <= 0 {
-        http.Error(w, "Invalid group ID", http.StatusBadRequest)
-        return
-    }
+	// ✅ Extract group ID from URL
+	groupIDStr := ps.ByName("c_id")
+	groupID, err := strconv.Atoi(groupIDStr)
+	if err != nil || groupID <= 0 {
+		http.Error(w, "Invalid group ID", http.StatusBadRequest)
+		return
+	}
 
-    // ✅ Parse request body to get new group name
-    var input struct {
-        NewName string `json:"new_name"`
-    }
-    err = json.NewDecoder(r.Body).Decode(&input)
-    if err != nil || input.NewName == "" {
-        http.Error(w, "Invalid input: new_name is required", http.StatusBadRequest)
-        return
-    }
+	// ✅ Parse request body to get new group name
+	var input struct {
+		NewName string `json:"new_name"`
+	}
+	err = json.NewDecoder(r.Body).Decode(&input)
+	if err != nil || input.NewName == "" {
+		http.Error(w, "Invalid input: new_name is required", http.StatusBadRequest)
+		return
+	}
 
-    // ✅ Check if the conversation is a group
-    isGroup, err := rt.db.IsConversationGroup(groupID)
-    if err != nil {
-        http.Error(w, "Error checking group type", http.StatusInternalServerError)
-        return
-    }
-    if !isGroup {
-        http.Error(w, "This conversation is not a group", http.StatusBadRequest)
-        return
-    }
+	// ✅ Check if the conversation is a group
+	isGroup, err := rt.db.IsConversationGroup(groupID)
+	if err != nil {
+		http.Error(w, "Error checking group type", http.StatusInternalServerError)
+		return
+	}
+	if !isGroup {
+		http.Error(w, "This conversation is not a group", http.StatusBadRequest)
+		return
+	}
 
-    // ✅ Check if the user is a member of the group
-    isMember, err := rt.db.IsUserInConversation(userID, groupID)
-    if err != nil {
-        http.Error(w, "Error checking user membership", http.StatusInternalServerError)
-        return
-    }
-    if !isMember {
-        http.Error(w, "User is not part of this group", http.StatusForbidden)
-        return
-    }
+	// ✅ Check if the user is a member of the group
+	isMember, err := rt.db.IsUserInConversation(userID, groupID)
+	if err != nil {
+		http.Error(w, "Error checking user membership", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "User is not part of this group", http.StatusForbidden)
+		return
+	}
 
-    // ✅ Check if the new group name is already taken
-    nameExists, err := rt.db.GroupNameExists(input.NewName)
-    if err != nil {
-        http.Error(w, "Error checking group name availability", http.StatusInternalServerError)
-        return
-    }
-    if nameExists {
-        http.Error(w, "A group with this name already exists", http.StatusConflict)
-        return
-    }
+	// ✅ Check if the new group name is already taken
+	nameExists, err := rt.db.GroupNameExists(input.NewName)
+	if err != nil {
+		http.Error(w, "Error checking group name availability", http.StatusInternalServerError)
+		return
+	}
+	if nameExists {
+		http.Error(w, "A group with this name already exists", http.StatusConflict)
+		return
+	}
 
-    // ✅ Update the group name
-    err = rt.db.UpdateGroupName(groupID, input.NewName)
-    if err != nil {
-        http.Error(w, "Error updating group name", http.StatusInternalServerError)
-        return
-    }
+	// ✅ Update the group name
+	err = rt.db.UpdateGroupName(groupID, input.NewName)
+	if err != nil {
+		http.Error(w, "Error updating group name", http.StatusInternalServerError)
+		return
+	}
 
-    // ✅ Respond with success
-    w.WriteHeader(http.StatusOK)
-    _ = json.NewEncoder(w).Encode(map[string]string{
-        "message":    "Group name updated successfully",
-        "group_id":   groupIDStr,
-        "new_name":   input.NewName,
-    })
+	// ✅ Respond with success
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"message":  "Group name updated successfully",
+		"group_id": groupIDStr,
+		"new_name": input.NewName,
+	})
 }
 
 func (rt *_router) setGroupPhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx *reqcontext.RequestContext) {

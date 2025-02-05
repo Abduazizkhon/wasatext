@@ -36,7 +36,6 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-
 )
 
 // AppDatabase is the high level interface for the DB
@@ -85,7 +84,6 @@ type AppDatabase interface {
 
 	// User updates
 	UpdateUserName(id string, newname string) (err error)
-
 
 	// Connection health
 	Ping() error

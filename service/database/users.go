@@ -2,8 +2,8 @@ package database
 
 import (
 	"database/sql"
-	"fmt"
 	"errors"
+	"fmt"
 	"github.com/gofrs/uuid"
 )
 
@@ -192,14 +192,14 @@ func (db *appdbimpl) GetUserByID(userID string) (User, error) {
 // GetUserIDByUsername resolves the username to a user ID
 // GetUserIDByUsername fetches the user ID by their username
 func (db *appdbimpl) GetUserIDByUsername(username string) (string, error) {
-    query := `SELECT id FROM users WHERE name = ?`
-    var userID string
-    err := db.c.QueryRow(query, username).Scan(&userID)
-    if err != nil {
-        if err == sql.ErrNoRows {
-            return "", fmt.Errorf("user not found")
-        }
-        return "", err
-    }
-    return userID, nil
+	query := `SELECT id FROM users WHERE name = ?`
+	var userID string
+	err := db.c.QueryRow(query, username).Scan(&userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("user not found")
+		}
+		return "", err
+	}
+	return userID, nil
 }

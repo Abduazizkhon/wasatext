@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"io"
-	"mime/multipart" 
+	"mime/multipart"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -145,7 +145,7 @@ func (db *appdbimpl) ConversationExists(senderID string, recipientID string) (bo
 // GetMyConversations_db retrieves all conversations for a specific user.
 // GetMyConversations_db retrieves all conversations for a specific user.
 func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error) {
-    query := `
+	query := `
         SELECT 
             c.id, 
             c.lastconvo, 
@@ -171,50 +171,51 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error
             cm.user_id = ?;
     `
 
-    rows, err := db.c.Query(query, userID, userID, userID)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	rows, err := db.c.Query(query, userID, userID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    var conversations []Conversation
-    for rows.Next() {
-        var convo Conversation
-        var userPhoto sql.NullString
-        err := rows.Scan(&convo.ID, &convo.LastConvo, &convo.IsGroup, &convo.Photo, &convo.Name, &userPhoto)
-        if err != nil {
-            return nil, err
-        }
+	var conversations []Conversation
+	for rows.Next() {
+		var convo Conversation
+		var userPhoto sql.NullString
+		err := rows.Scan(&convo.ID, &convo.LastConvo, &convo.IsGroup, &convo.Photo, &convo.Name, &userPhoto)
+		if err != nil {
+			return nil, err
+		}
 
-        // Correct the photo URL by avoiding double '/uploads/'
-        if userPhoto.Valid && userPhoto.String != "" {
-            // Only prepend '/uploads/' if it's not already there
-            if !strings.HasPrefix(userPhoto.String, "/uploads/") {
-                convo.Photo.String = "http://localhost:3000/uploads/" + userPhoto.String
-            } else {
-                convo.Photo.String = "http://localhost:3000" + userPhoto.String
-            }
-        } else if convo.Photo.Valid && convo.Photo.String != "" {
-            // Handle the conversation's own photo URL
-            if !strings.HasPrefix(convo.Photo.String, "/uploads/") {
-                convo.Photo.String = "http://localhost:3000/uploads/" + convo.Photo.String
-            } else {
-                convo.Photo.String = "http://localhost:3000" + convo.Photo.String
-            }
-        } else {
-            // If no valid photo, use the default profile picture
-            convo.Photo.String = "http://localhost:3000/default-profile.png"
-        }
+		// Correct the photo URL by avoiding double '/uploads/'
+		if userPhoto.Valid && userPhoto.String != "" {
+			// Only prepend '/uploads/' if it's not already there
+			if !strings.HasPrefix(userPhoto.String, "/uploads/") {
+				convo.Photo.String = "http://localhost:3000/uploads/" + userPhoto.String
+			} else {
+				convo.Photo.String = "http://localhost:3000" + userPhoto.String
+			}
+		} else if convo.Photo.Valid && convo.Photo.String != "" {
+			// Handle the conversation's own photo URL
+			if !strings.HasPrefix(convo.Photo.String, "/uploads/") {
+				convo.Photo.String = "http://localhost:3000/uploads/" + convo.Photo.String
+			} else {
+				convo.Photo.String = "http://localhost:3000" + convo.Photo.String
+			}
+		} else {
+			// If no valid photo, use the default profile picture
+			convo.Photo.String = "http://localhost:3000/default-profile.png"
+		}
 
-        conversations = append(conversations, convo)
-    }
+		conversations = append(conversations, convo)
+	}
 
-    if err = rows.Err(); err != nil {
-        return nil, err
-    }
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
 
-    return conversations, nil
+	return conversations, nil
 }
+
 // SendMessage inserts a new message into the database.
 func (db *appdbimpl) SendMessage(conversationID int, senderID string, content string) error {
 	query := `
@@ -310,9 +311,9 @@ func (db *appdbimpl) IsMessageOwner(userID string, messageID int) (bool, error) 
 }
 
 func (db *appdbimpl) DeleteMessage(messageID int) error {
-    query := `DELETE FROM messages WHERE id = ?;`
-    _, err := db.c.Exec(query, messageID)
-    return err
+	query := `DELETE FROM messages WHERE id = ?;`
+	_, err := db.c.Exec(query, messageID)
+	return err
 }
 
 func (db *appdbimpl) GetMessageContent(messageID int) (string, error) {
@@ -401,13 +402,13 @@ func (db *appdbimpl) UpdateGroupPhoto(groupID int, photoPath string) error {
 
 // Check if a message exists
 func (db *appdbimpl) DoesMessageExist(messageID int) (bool, error) {
-    query := `SELECT COUNT(*) FROM messages WHERE id = ?;`
-    var count int
-    err := db.c.QueryRow(query, messageID).Scan(&count)
-    if err != nil {
-        return false, err
-    }
-    return count > 0, nil
+	query := `SELECT COUNT(*) FROM messages WHERE id = ?;`
+	var count int
+	err := db.c.QueryRow(query, messageID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // Add a comment to a message
@@ -421,65 +422,65 @@ func (db *appdbimpl) CommentOnMessage(messageID int, userID string, contentType 
 }
 
 func (db *appdbimpl) DoesConversationExist(conversationID int) (bool, error) {
-    query := `SELECT COUNT(*) FROM conversations WHERE id = ?;`
-    var count int
-    err := db.c.QueryRow(query, conversationID).Scan(&count)
-    if err != nil {
-        return false, err
-    }
-    return count > 0, nil
+	query := `SELECT COUNT(*) FROM conversations WHERE id = ?;`
+	var count int
+	err := db.c.QueryRow(query, conversationID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func (db *appdbimpl) ConvertCommentsToMessages(messageID int, conversationID int) error {
-    querySelect := `
+	querySelect := `
         SELECT user_id, content_type, content FROM message_comments WHERE message_id = ?;
     `
-    
-    // Fetch comments first
-    rows, err := db.c.Query(querySelect, messageID)
-    if err != nil {
-        return err
-    }
-    
-    // Store comments in memory before closing rows
-    var comments []struct {
-        UserID      string
-        ContentType string
-        Content     string
-    }
 
-    for rows.Next() {
-        var comment struct {
-            UserID      string
-            ContentType string
-            Content     string
-        }
-        if err := rows.Scan(&comment.UserID, &comment.ContentType, &comment.Content); err != nil {
-            rows.Close() // Ensure we close before returning an error
-            return err
-        }
-        comments = append(comments, comment)
-    }
-    
-    rows.Close() // ✅ Properly close before inserting new messages
+	// Fetch comments first
+	rows, err := db.c.Query(querySelect, messageID)
+	if err != nil {
+		return err
+	}
 
-    // Insert each comment as a new message
-    for _, comment := range comments {
-        queryInsert := `
+	// Store comments in memory before closing rows
+	var comments []struct {
+		UserID      string
+		ContentType string
+		Content     string
+	}
+
+	for rows.Next() {
+		var comment struct {
+			UserID      string
+			ContentType string
+			Content     string
+		}
+		if err := rows.Scan(&comment.UserID, &comment.ContentType, &comment.Content); err != nil {
+			rows.Close() // Ensure we close before returning an error
+			return err
+		}
+		comments = append(comments, comment)
+	}
+
+	rows.Close() // ✅ Properly close before inserting new messages
+
+	// Insert each comment as a new message
+	for _, comment := range comments {
+		queryInsert := `
             INSERT INTO messages (conversation_id, sender, content, datetime, status)
             VALUES (?, ?, ?, CURRENT_TIMESTAMP, 'comment-converted');
         `
-        _, err = db.c.Exec(queryInsert, conversationID, comment.UserID, comment.Content)
-        if err != nil {
-            return err
-        }
-    }
+		_, err = db.c.Exec(queryInsert, conversationID, comment.UserID, comment.Content)
+		if err != nil {
+			return err
+		}
+	}
 
-    // Finally, delete comments from message_comments
-    queryDelete := `DELETE FROM message_comments WHERE message_id = ?;`
-    _, err = db.c.Exec(queryDelete, messageID)
-    
-    return err
+	// Finally, delete comments from message_comments
+	queryDelete := `DELETE FROM message_comments WHERE message_id = ?;`
+	_, err = db.c.Exec(queryDelete, messageID)
+
+	return err
 }
 
 // ✅ Check if a user is the owner of a comment
@@ -500,15 +501,13 @@ func (db *appdbimpl) DeleteComment(commentID int) error {
 	return err
 }
 
-
-
 func (db *appdbimpl) SendMessageWithType(conversationID int, senderID string, content string, contentType string) error {
-    query := `
+	query := `
         INSERT INTO messages (conversation_id, sender, content, content_type, datetime, status)
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'sent');
     `
-    _, err := db.c.Exec(query, conversationID, senderID, content, contentType)
-    return err
+	_, err := db.c.Exec(query, conversationID, senderID, content, contentType)
+	return err
 }
 
 func (db *appdbimpl) SendMessageWithMedia(conversationID int, senderID string, contentType string, content string) error {
