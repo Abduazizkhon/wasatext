@@ -23,7 +23,12 @@ func (db *appdbimpl) CreateUser(username string) (User, error) {
 	if err != nil {
 		return User{}, err
 	}
-	defer tx.Rollback() // Rollback the transaction if it's not committed
+	// defer tx.Rollback() // Rollback the transaction if it's not committed
+	defer func() {
+		if newerr := tx.Rollback(); newerr != nil {
+			err = errors.New("failed to rollback transaction")
+		}
+	}()
 
 	// Generate a UUID
 	id, err := uuid.NewV4()
@@ -115,7 +120,11 @@ func (db *appdbimpl) UpdateUserName(id string, newname string) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		if newerr := tx.Rollback(); newerr != nil {
+			err = errors.New("failed to rollback transaction")
+		}
+	}()
 
 	// Check if the username already exists
 	var count int

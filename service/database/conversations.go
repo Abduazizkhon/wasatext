@@ -190,20 +190,20 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error
 		if userPhoto.Valid && userPhoto.String != "" {
 			// Only prepend '/uploads/' if it's not already there
 			if !strings.HasPrefix(userPhoto.String, "/uploads/") {
-				convo.Photo.String = "http://localhost:3000/uploads/" + userPhoto.String
+				convo.Photo.String = "/uploads/" + userPhoto.String
 			} else {
-				convo.Photo.String = "http://localhost:3000" + userPhoto.String
+				convo.Photo.String = userPhoto.String
 			}
 		} else if convo.Photo.Valid && convo.Photo.String != "" {
 			// Handle the conversation's own photo URL
 			if !strings.HasPrefix(convo.Photo.String, "/uploads/") {
-				convo.Photo.String = "http://localhost:3000/uploads/" + convo.Photo.String
+				convo.Photo.String = "/uploads/" + convo.Photo.String
 			} else {
-				convo.Photo.String = "http://localhost:3000" + convo.Photo.String
+				convo.Photo.String = convo.Photo.String
 			}
 		} else {
 			// If no valid photo, use the default profile picture
-			convo.Photo.String = "http://localhost:3000/default-profile.png"
+			convo.Photo.String = "/default-profile.png"
 		}
 
 		conversations = append(conversations, convo)
@@ -461,6 +461,9 @@ func (db *appdbimpl) ConvertCommentsToMessages(messageID int, conversationID int
 		}
 		comments = append(comments, comment)
 	}
+	if err = rows.Err(); err != nil {
+		return err
+	}
 
 	rows.Close() // ✅ Properly close before inserting new messages
 
@@ -537,7 +540,10 @@ func (db *appdbimpl) SaveUploadedFile(file io.Reader, header *multipart.FileHead
 
 	// Ensure uploads directory exists
 	uploadDir := "webui/public/uploads"
-	_ = os.MkdirAll(uploadDir, os.ModePerm)
+	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+
+		return "", "", errors.New("fail to create a directory")
+	}
 
 	// Generate unique filename (userID + timestamp)
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
