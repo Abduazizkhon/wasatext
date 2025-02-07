@@ -58,7 +58,7 @@ func (db *appdbimpl) GetUser(username string) (user User, err error) {
 
 	// Attempt to scan the result into the User struct
 	err = row.Scan(&user.ID, &user.Username)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		// Return a clear error if no user is found
 		return
 	} else if err != nil {
@@ -102,7 +102,7 @@ func (db *appdbimpl) GetUserId(id string) (user User, err error) {
 	// Attempt to scan the result into the User struct
 	err = row.Scan(&user.ID, &user.Username, &user.Photo)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// Return a clear error if no user is found
 			return User{}, sql.ErrNoRows
 		}
@@ -173,7 +173,7 @@ func GetUserByID(db *sql.DB, userID string) (*User, error) {
 		Scan(&user.ID, &user.Username, &user.Photo)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("user not found")
 		}
 		return nil, err
@@ -189,7 +189,7 @@ func (db *appdbimpl) GetUserByID(userID string) (User, error) {
 	var user User
 	err := row.Scan(&user.ID, &user.Username, &user.Photo)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return User{}, sql.ErrNoRows
 		}
 		return User{}, err
@@ -205,7 +205,7 @@ func (db *appdbimpl) GetUserIDByUsername(username string) (string, error) {
 	var userID string
 	err := db.c.QueryRow(query, username).Scan(&userID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows){
 			return "", fmt.Errorf("user not found")
 		}
 		return "", err

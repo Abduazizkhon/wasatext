@@ -68,7 +68,7 @@ func (db *appdbimpl) GetConversationById(conversationID int) (conversation Conve
 		&conversation.Name,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return Conversation{}, nil // Return an empty conversation if no rows are found
 		}
 		return Conversation{}, err
@@ -365,7 +365,7 @@ func (db *appdbimpl) IsConversationGroup(conversationID int) (bool, error) {
 	var isGroup bool
 	err := db.c.QueryRow(query, conversationID).Scan(&isGroup)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil // No conversation found
 		}
 		return false, err
