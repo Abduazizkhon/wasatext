@@ -7,8 +7,8 @@ import (
 // Handler returns an instance of httprouter.Router that handle APIs registered here
 func (rt *_router) Handler() http.Handler {
 	// Register routes
-	rt.router.GET("/liveness", rt.liveness) 															// done
-	rt.router.POST("/session", rt.wrap(rt.doLogin)) 													// done
+	rt.router.GET("/liveness", rt.liveness)         // done
+	rt.router.POST("/session", rt.wrap(rt.doLogin)) // done
 	rt.router.ServeFiles("/uploads/*filepath", http.Dir("webui/public/uploads"))
 
 	// rt.router.POST("/logout", rt.wrap(rt.logout))
