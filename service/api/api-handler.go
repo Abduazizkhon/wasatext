@@ -7,8 +7,8 @@ import (
 // Handler returns an instance of httprouter.Router that handle APIs registered here
 func (rt *_router) Handler() http.Handler {
 	// Register routes
-	// rt.router.GET("/liveness/", rt.wrap(rt.liveness))
-	rt.router.POST("/session", rt.wrap(rt.doLogin)) // done
+	rt.router.GET("/liveness", rt.liveness) 															// done
+	rt.router.POST("/session", rt.wrap(rt.doLogin)) 													// done
 	rt.router.ServeFiles("/uploads/*filepath", http.Dir("webui/public/uploads"))
 
 	// rt.router.POST("/logout", rt.wrap(rt.logout))
@@ -17,7 +17,7 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.GET("/users/:id/conversations", rt.wrap(rt.getMyConversations))                           // done
 	rt.router.POST("/users/:id/conversations/first-message", rt.wrap(rt.sendMessageFirst))              // done
 	rt.router.POST("/conversations/:conversation_id/messages", rt.wrap(rt.sendMessage))                 // done
-	rt.router.GET("/conversations/:c_id", rt.wrap(rt.getMessages))                                      // done
+	rt.router.GET("/conversations/:c_id", rt.wrap(rt.getConversation))                                  // done
 	rt.router.DELETE("/conversations/:conversation_id/messages/:message_id", rt.wrap(rt.deleteMessage)) // done
 	rt.router.POST("/conversations/:conversation_id/messages/:message_id/forward/:target_conversation_id", rt.wrap(rt.forwardMessage))
 	rt.router.POST("/groups", rt.wrap(rt.createGroup))                               // done

@@ -198,8 +198,6 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error
 			// Handle the conversation's own photo URL
 			if !strings.HasPrefix(convo.Photo.String, "/uploads/") {
 				convo.Photo.String = "/uploads/" + convo.Photo.String
-			} else {
-				convo.Photo.String = convo.Photo.String
 			}
 		} else {
 			// If no valid photo, use the default profile picture

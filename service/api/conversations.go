@@ -3,16 +3,18 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
-	"github.com/Abduazizkhon/wasatext/service/api/reqcontext"
-	"github.com/julienschmidt/httprouter"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/Abduazizkhon/wasatext/service/api/reqcontext"
+	"github.com/julienschmidt/httprouter"
 )
 
 func (rt *_router) getMyConversations(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
@@ -77,7 +79,7 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 	// Validate sender
 	sender, err := rt.db.GetUserId(senderID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			context.Logger.WithError(err).Error("Sender not found")
 			http.Error(w, "Sender not found", http.StatusNotFound)
 			return
@@ -90,7 +92,7 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 	// Validate recipient
 	recipient, err := rt.db.GetUserId(recipientID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			context.Logger.WithError(err).Error("Recipient not found")
 			http.Error(w, "Recipient not found", http.StatusNotFound)
 			return
@@ -172,40 +174,44 @@ func (rt *_router) sendMessageFirst(w http.ResponseWriter, r *http.Request, ps h
 
 	// Respond with conversation ID
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+	err = json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "Message sent successfully",
 		"c_id":    newConvo.ID,
 	})
+	if err != nil {
+		context.Logger.WithError(err).Error("Error encoding response")
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+	}
 }
 
 // update username of a user. Also change the name of that user in all convos
 
-func (rt *_router) getConversation(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context reqcontext.RequestContext) {
-	conversationId, err := strconv.Atoi(ps.ByName("id"))
-	if err != nil || conversationId <= 0 {
-		rt.baseLogger.WithError(err).Error("Invalid conversation ID")
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid conversation ID"})
-		return
-	}
+// func (rt *_router) getConversation(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context reqcontext.RequestContext) {
+// 	conversationId, err := strconv.Atoi(ps.ByName("id"))
+// 	if err != nil || conversationId <= 0 {
+// 		rt.baseLogger.WithError(err).Error("Invalid conversation ID")
+// 		w.WriteHeader(http.StatusBadRequest)
+// 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid conversation ID"})
+// 		return
+// 	}
 
-	conversation, err := rt.db.GetConversationById(conversationId)
-	if err != nil {
-		rt.baseLogger.WithError(err).Error("Failed to fetch conversation")
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch conversation"})
-		return
-	}
+// 	conversation, err := rt.db.GetConversationById(conversationId)
+// 	if err != nil {
+// 		rt.baseLogger.WithError(err).Error("Failed to fetch conversation")
+// 		w.WriteHeader(http.StatusInternalServerError)
+// 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch conversation"})
+// 		return
+// 	}
 
-	if conversation.ID == 0 {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Conversation not found"})
-		return
-	}
+// 	if conversation.ID == 0 {
+// 		w.WriteHeader(http.StatusNotFound)
+// 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Conversation not found"})
+// 		return
+// 	}
 
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(conversation)
-}
+// 	w.WriteHeader(http.StatusOK)
+// 	_ = json.NewEncoder(w).Encode(conversation)
+// }
 
 func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
 	context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
@@ -261,7 +267,11 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 
 		// Save the uploaded file
 		uploadDir := "webui/public/uploads"
-		os.MkdirAll(uploadDir, os.ModePerm)
+		if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+			context.Logger.WithError(err).Error("Failed to create upload directory")
+			http.Error(w, "Failed to save file", http.StatusInternalServerError)
+			return
+		}
 
 		// Generate unique filename
 		fileName := senderID + "_" + strconv.Itoa(int(time.Now().Unix())) + fileExt
@@ -314,16 +324,20 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 
 	// Send the response with the username, photo, and message content
 	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+	err = json.NewEncoder(w).Encode(map[string]interface{}{
 		"message":         "Message sent successfully",
 		"content_type":    contentType,
 		"content":         content,
 		"sender_username": user.Username,     // Now using the actual username from GetUserByID
 		"sender_photo":    user.Photo.String, // Return the photo (URL or empty if no photo)
 	})
+	if err != nil {
+		context.Logger.WithError(err).Error("Error encoding response")
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+	}
 }
 
-func (rt *_router) getMessages(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
+func (rt *_router) getConversation(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
 	// Extract conversation ID from the path parameters
 	conversationID, err := strconv.Atoi(ps.ByName("c_id"))
 	if err != nil || conversationID <= 0 {
@@ -509,7 +523,7 @@ func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps htt
 	// Step 4: Fetch the message content from the source conversation
 	messageContent, err := rt.db.GetMessageContent(messageID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			context.Logger.WithError(err).Error("Message not found")
 			http.Error(w, "Message not found", http.StatusNotFound)
 			return
@@ -598,7 +612,7 @@ func (rt *_router) createGroup(w http.ResponseWriter, r *http.Request, ps httpro
 	for _, username := range usernames {
 		user, err := rt.db.GetUser(username)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "User '"+username+"' not found", http.StatusNotFound)
 				return
 			}
@@ -667,7 +681,7 @@ func (rt *_router) addToGroup(w http.ResponseWriter, r *http.Request, ps httprou
 	for _, username := range input.Usernames {
 		user, err := rt.db.GetUser(username)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "User not found: "+username, http.StatusNotFound)
 				return
 			}
@@ -896,7 +910,11 @@ func (rt *_router) setGroupPhoto(w http.ResponseWriter, r *http.Request, ps http
 
 	// Ensure upload directory exists
 	uploadDir := "webui/public/uploads"
-	_ = os.MkdirAll(uploadDir, os.ModePerm)
+	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+		ctx.Logger.WithError(err).Error("Failed to create upload directory")
+		http.Error(w, "Failed to save file", http.StatusInternalServerError)
+		return
+	}
 
 	// Generate new filename using the group ID
 	fileName := "group_" + strconv.Itoa(groupID) + fileExt
@@ -985,7 +1003,11 @@ func (rt *_router) commentMessage(w http.ResponseWriter, r *http.Request, ps htt
 
 		// Ensure uploads directory exists
 		uploadDir := "webui/public/uploads"
-		_ = os.MkdirAll(uploadDir, os.ModePerm)
+		if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+			context.Logger.WithError(err).Error("Failed to create upload directory")
+			http.Error(w, "Failed to save file", http.StatusInternalServerError)
+			return
+		}
 
 		// Generate unique filename
 		fileName := userID + "_" + strconv.Itoa(messageID) + fileExt

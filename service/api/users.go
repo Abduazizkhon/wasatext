@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 
 	"net/http"
 
@@ -33,7 +34,7 @@ func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter
 	// Check if the user exists
 	user, err := rt.db.GetUser(input.Username)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// User doesn't exist, create them
 			user, err = rt.db.CreateUser(input.Username)
 			if err != nil {
@@ -56,33 +57,34 @@ func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter
 		"token": user.ID, // The user ID is the token
 	})
 }
-func (rt *_router) logout(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context reqcontext.RequestContext) {
-	// Parse the request body to extract the user ID (UUID)
-	var user User
-	err := json.NewDecoder(r.Body).Decode(&user)
-	if err != nil || user.ID == "" {
-		http.Error(w, "Invalid request body or missing user ID", http.StatusBadRequest)
-		return
-	}
 
-	// Validate if the user exists in the database
-	_, err = rt.db.GetUserId(user.ID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			http.Error(w, "User not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "Failed to validate user", http.StatusInternalServerError)
-		return
-	}
+// func (rt *_router) logout(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context reqcontext.RequestContext) {
+// 	// Parse the request body to extract the user ID (UUID)
+// 	var user User
+// 	err := json.NewDecoder(r.Body).Decode(&user)
+// 	if err != nil || user.ID == "" {
+// 		http.Error(w, "Invalid request body or missing user ID", http.StatusBadRequest)
+// 		return
+// 	}
 
-	// Perform any additional logout logic here (if needed)
+// 	// Validate if the user exists in the database
+// 	_, err = rt.db.GetUserId(user.ID)
+// 	if err != nil {
+// 		if err == sql.ErrNoRows {
+// 			http.Error(w, "User not found", http.StatusNotFound)
+// 			return
+// 		}
+// 		http.Error(w, "Failed to validate user", http.StatusInternalServerError)
+// 		return
+// 	}
 
-	// Send a success response
-	w.WriteHeader(http.StatusOK)
-	w.Header().Set("Content-Type", "text/plain")
-	_, _ = w.Write([]byte("Logout successful"))
-}
+// 	// Perform any additional logout logic here (if needed)
+
+// 	// Send a success response
+// 	w.WriteHeader(http.StatusOK)
+// 	w.Header().Set("Content-Type", "text/plain")
+// 	_, _ = w.Write([]byte("Logout successful"))
+// }
 
 // -----------------
 
@@ -104,6 +106,10 @@ func (rt *_router) setMyUserName(w http.ResponseWriter, r *http.Request, ps http
 	}
 
 	existingUser, err := rt.db.GetUser(input.NewName)
+	if err != nil {
+		context.Logger.WithError(err).Error("Error getting user from databse")
+		http.Error(w, "Error getting user", http.StatusInternalServerError)
+	}
 	if existingUser.Username != "" {
 		http.Error(w, "Username already exists", http.StatusConflict)
 		return
@@ -143,7 +149,11 @@ func (rt *_router) setMyPhoto(w http.ResponseWriter, r *http.Request, ps httprou
 
 	// Ensure upload directory exists
 	uploadDir := "webui/public/uploads"
-	_ = os.MkdirAll(uploadDir, os.ModePerm)
+	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+		ctx.Logger.WithError(err).Error("Failed to create upload directory")
+		http.Error(w, "Failed to save file", http.StatusInternalServerError)
+		return
+	}
 
 	// Generate the new filename using the user ID
 	fileName := userID + fileExt
@@ -187,7 +197,7 @@ func (rt *_router) getUser(w http.ResponseWriter, r *http.Request, ps httprouter
 
 	user, err := rt.db.GetUserId(userID)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
 		}
@@ -210,36 +220,41 @@ func (rt *_router) getUser(w http.ResponseWriter, r *http.Request, ps httprouter
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
-
-// This endpoint resolves the username to user ID
-func (rt *_router) getUserIDByUsername(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
-	username := ps.ByName("username")
-	if username == "" {
-		context.Logger.Error("Username is required")
-		http.Error(w, "Username is required", http.StatusBadRequest)
-		return
-	}
-
-	// Query the database to get the user ID by username
-	userID, err := rt.db.GetUserIDByUsername(username)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			context.Logger.WithError(err).Error("User not found")
-			http.Error(w, "User not found", http.StatusNotFound)
-			return
-		}
-		context.Logger.WithError(err).Error("Error fetching user ID")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	// Respond with the user ID
-	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(map[string]string{"user_id": userID})
+	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
 		context.Logger.WithError(err).Error("Error encoding response")
 		http.Error(w, "Error encoding response", http.StatusInternalServerError)
 	}
+
 }
+
+// This endpoint resolves the username to user ID
+// func (rt *_router) getUserIDByUsername(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
+// 	username := ps.ByName("username")
+// 	if username == "" {
+// 		context.Logger.Error("Username is required")
+// 		http.Error(w, "Username is required", http.StatusBadRequest)
+// 		return
+// 	}
+
+// 	// Query the database to get the user ID by username
+// 	userID, err := rt.db.GetUserIDByUsername(username)
+// 	if err != nil {
+// 		if err == sql.ErrNoRows {
+// 			context.Logger.WithError(err).Error("User not found")
+// 			http.Error(w, "User not found", http.StatusNotFound)
+// 			return
+// 		}
+// 		context.Logger.WithError(err).Error("Error fetching user ID")
+// 		http.Error(w, "Internal server error", http.StatusInternalServerError)
+// 		return
+// 	}
+
+// 	// Respond with the user ID
+// 	w.WriteHeader(http.StatusOK)
+// 	err = json.NewEncoder(w).Encode(map[string]string{"user_id": userID})
+// 	if err != nil {
+// 		context.Logger.WithError(err).Error("Error encoding response")
+// 		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+// 	}
+// }

@@ -58,7 +58,7 @@ func (rt *_router) wrap(fn httpRouterHandler) func(http.ResponseWriter, *http.Re
 		// Validate the user ID (token) by checking if the user exists in the database
 		_, err = rt.db.GetUserId(userID)
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, sql.ErrNoRows) {
 				rt.baseLogger.WithError(err).Warn("user not found")
 				http.Error(w, "Invalid user ID (token)", http.StatusUnauthorized)
 				return

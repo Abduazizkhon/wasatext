@@ -363,7 +363,7 @@ paths:
                 maxItems: 100
 
 
-  /users/{id}/conversations/{c_id}:
+  /conversations/{c_id}:
     get:
       tags:
         - Conversations
@@ -371,12 +371,6 @@ paths:
       description: Retrieves details of a specific conversation by its unique ID.
       operationId: getConversation
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: The unique identifier of the user who is part of the conversation.
         - name: c_id
           in: path
           required: true
@@ -405,15 +399,9 @@ paths:
 
 
 
-  /users/{id}/conversations/{c_id}/messages:
+  /conversations/{conversation_id}/messages:
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the user.
-      - name: c_id
+      - name: conversation_id
         in: path
         required: true
         schema:
@@ -477,26 +465,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/Message'
 
-  /users/{id}/conversations/{c_id}/messages/{m_id}/forward:
+  /conversations/{conversation_id}/messages/{message_id}/forward/{target_conversation_id}:
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the user.
-      - name: c_id
+      - name: conversation_id
         in: path
         required: true
         schema:
           type: integer
         description: The unique identifier of the conversation.
-      - name: m_id
+      - name: message_id
         in: path
         required: true
         schema:
           type: integer
         description: The unique identifier of the message to be forwarded.
+      - name: target_conversation_id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: The unique identifier of the conversation to be forwarded.
 
     post:
       tags:
@@ -544,21 +532,15 @@ paths:
 
 
 
-  /users/{id}/conversations/{c_id}/messages/{m_id}/comments:
+  /conversations/{conversation_id}/messages/{message_id}/comments:
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the user.
-      - name: c_id
+      - name: conversation_id
         in: path
         required: true
         schema:
           type: integer
         description: The unique identifier of the conversation.
-      - name: m_id
+      - name: message_id
         in: path
         required: true
         schema:
@@ -612,27 +594,21 @@ paths:
                 minLength: 3
                 maxLength: 50
 
-  /users/{id}/conversations/{c_id}/messages/{m_id}/comments/{commentId}:
+  /conversations/{conversation_id}/messages/{message_id}/comments/{comment_id}:
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the user.
-      - name: c_id
+      - name: conversation_id
         in: path
         required: true
         schema:
           type: integer
         description: The unique identifier of the conversation.
-      - name: m_id
+      - name: message_id
         in: path
         required: true
         schema:
           type: integer
         description: The unique identifier of the message.
-      - name: commentId
+      - name: comment_id
         in: path
         required: true
         schema:
@@ -659,21 +635,15 @@ paths:
                 minLength: 3
                 maxLength: 50
 
-  /conversations/{c_id}/messages/{m_id}:
+  /conversations/{conversation_id}/messages/{message_id}:
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the user.
-      - name: c_id
+      - name: conversation_id
         in: path
         required: true
         schema:
           type: integer
         description: The unique identifier of the conversation.
-      - name: m_id
+      - name: message_id
         in: path
         required: true
         schema:
@@ -702,27 +672,14 @@ paths:
 
 
 
-  /users/{id}/conversations/{c_id}/groups/{g_id}/members:
+  /groups/{c_id}/members:
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the user.
       - name: c_id
         in: path
         required: true
         schema:
           type: integer
         description: The unique identifier of the conversation.
-      - name: g_id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the group.
-
     post:
       tags:
         - Groups
@@ -767,27 +724,14 @@ paths:
                 minLength: 3
                 maxLength: 50
 
-  /users/{id}/conversations/{c_id}/groups/{g_id}/leave:
+  /groups/{c_id}/leave:
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the user.
       - name: c_id
         in: path
         required: true
         schema:
           type: integer
         description: The unique identifier of the conversation.
-      - name: g_id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the group.
-
     post:
       tags:
         - Groups
@@ -821,27 +765,14 @@ paths:
                 minLength: 3
                 maxLength: 50
 
-  /users/{id}/conversations/{c_id}/groups/{g_id}/name:
+  /groups/{c_id}/name:
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the user.
       - name: c_id
         in: path
         required: true
         schema:
           type: integer
         description: The unique identifier of the conversation.
-      - name: g_id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the group.
-
     put:
       tags:
         - Groups
@@ -891,27 +822,14 @@ paths:
 
 
 
-  /users/{id}/conversations/{c_id}/groups/{g_id}/photo:
+  /conversations/{c_id}/set-group-photo:
     parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the user who is performing the operation.
       - name: c_id
         in: path
         required: true
         schema:
           type: integer
         description: The unique identifier of the conversation that contains the group.
-      - name: g_id
-        in: path
-        required: true
-        schema:
-          type: integer
-        description: The unique identifier of the group whose photo is being updated.
-
     put:
       tags:
         - Groups
@@ -960,3 +878,150 @@ paths:
                 pattern: ^.*$
                 minLength: 3
                 maxLength: 50
+
+  /users/{id}/conversations/first-message:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: The unique identifier of the user.
+
+    post:
+      tags:
+        - Messages
+      summary: Send the first message
+      description: Sends the first message in a conversation with a user.
+      operationId: sendMessageFirst
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Payload for sending the first message.
+              properties:
+                content:
+                  type: string
+                  description: The content of the first message to be sent.
+                  pattern: "^[a-zA-Z0-9_]+$"
+                  minLength: 3
+                  maxLength: 50
+                status:
+                  type: string
+                  description: The status of the message, indicating its delivery state.
+                  pattern: "^[a-zA-Z0-9_]+$"
+                  minLength: 3
+                  maxLength: 50
+                  enum:
+                    - "sent"
+                    - "delivered"
+                    - "read"
+      responses:
+        '201':
+          description: First message sent successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        
+  /groups:
+    post:
+      tags:
+        - Groups
+      summary: Create a group
+      description: Creates a new group with the specified name and members.
+      operationId: createGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Payload for creating a new group.
+              properties:
+                name:
+                  type: string
+                  description: The name of the new group.
+                  minLength: 1
+                  maxLength: 100
+                  pattern: "^[a-zA-Z0-9_ ]+$"
+                members:
+                  type: array
+                  description: An array of user IDs to add as members of the group.
+                  items:
+                    type: integer
+                  minItems: 1
+                  maxItems: 1000
+      responses:
+        '201':
+          description: Group created successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Success response indicating the group was created.
+                properties:
+                  message:
+                    type: string
+                    description: Confirmation message.
+                    pattern: "^[a-zA-Z0-9_ ]+$"
+                    minLength: 3
+                    maxLength: 50
+                    example: "Group created successfully"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Error message indicating invalid input.
+                pattern: "^[a-zA-Z0-9_ ]+$"
+                minLength: 3
+                maxLength: 50
+        '409':
+          description: Group name already in use
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Error message indicating the group name is already taken.
+                pattern: "^[a-zA-Z0-9_ ]+$"
+                minLength: 3
+                maxLength: 50
+
+  /users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Get user details
+      description: Retrieves the details of a user by their unique identifier.
+      operationId: getUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: The unique identifier of the user.
+      responses:
+        '200':
+          description: User details retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found.
+          content:
+            application/json:
+              schema:
+                type: string
+                description: Error message indicating the user could not be found.
+                pattern: ^.*$
+                minLength: 3
+                maxLength: 50
+
+
+
