@@ -21,7 +21,7 @@
 </template>
 
 <script>
-import axios from "axios";
+import axios from '../services/axios.js';
 
 export default {
   name: "LoginView",
@@ -34,7 +34,7 @@ export default {
   methods: {
     async doLogin() {
       try {
-        const response = await axios.post("http://localhost:3000/session", {
+        const response = await axios.post("/session", {
           username: this.username,
         });
 

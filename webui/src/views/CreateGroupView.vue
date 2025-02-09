@@ -28,7 +28,7 @@
 </template>
 
 <script>
-import axios from 'axios';
+import axios from '../services/axios.js';
 
 export default {
   name: "CreateGroupView",
@@ -67,7 +67,8 @@ export default {
       formData.append('usernames', JSON.stringify(usernames));  // Make sure this is a JSON string
 
       try {
-        const response = await axios.post(`http://localhost:3000/groups`, formData, {
+        // Use a relative URL so the axios instance's baseURL is applied automatically.
+        const response = await axios.post('/groups', formData, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'multipart/form-data',

@@ -128,13 +128,14 @@ func (db *appdbimpl) UpdateUserName(id string, newname string) (err error) {
 
 	// Check if the username already exists
 	var count int
-	checkQuery := `SELECT COUNT(*) FROM users WHERE name = ?;`
-	err = tx.QueryRow(checkQuery, newname).Scan(&count)
+	// After
+	checkQuery := `SELECT COUNT(*) FROM users WHERE name = ? AND id <> ?;`
+	err = tx.QueryRow(checkQuery, newname, id).Scan(&count)
 	if err != nil {
-		return fmt.Errorf("failed to check if username exists: %w", err)
+		return errors.New("failed to check if username exists: " + err.Error())
 	}
 	if count > 0 {
-		return fmt.Errorf("username '%s' is already taken", newname)
+		return errors.New("username '" + newname + "' is already taken by another user")
 	}
 
 	// Update the username in the users table
@@ -205,7 +206,7 @@ func (db *appdbimpl) GetUserIDByUsername(username string) (string, error) {
 	var userID string
 	err := db.c.QueryRow(query, username).Scan(&userID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows){
+		if errors.Is(err, sql.ErrNoRows) {
 			return "", fmt.Errorf("user not found")
 		}
 		return "", err

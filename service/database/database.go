@@ -81,6 +81,10 @@ type AppDatabase interface {
 	SendMessageWithType(conversationID int, senderID string, contentType string, content string) error
 	SendMessageWithMedia(conversationID int, senderID string, contentType string, content string) error
 	SaveUploadedFile(file io.Reader, header *multipart.FileHeader, userID string) (string, string, error)
+	GetCommentsByMessageID(messageID int) ([]MessageComment, error)
+	GetConversationBetweenUsers(user1 string, user2 string) (Conversation, error)
+	GetGroupByName(groupName string) (Conversation, error)
+	GetGroupNameById(conversationID int) (string, error)
 
 	// User updates
 	UpdateUserName(id string, newname string) (err error)

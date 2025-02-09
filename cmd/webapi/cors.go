@@ -12,7 +12,7 @@ import (
 func applyCORSHandler(h http.Handler) http.Handler {
 	return handlers.CORS(
 		handlers.AllowedHeaders([]string{
-			"Content-Type", "Authorization", "x-example-header",  
+			"Content-Type", "Authorization", "x-example-header",
 			// i have changed the line above
 		}),
 		handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS", "DELETE", "PUT"}),

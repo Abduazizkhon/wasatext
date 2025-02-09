@@ -12,8 +12,7 @@
 </template>
 
 <script>
-import axios from "axios";
-
+import axios from '../services/axios.js';
 export default {
   name: "HomeView",
   data() {
@@ -29,30 +28,16 @@ export default {
     async fetchProfilePhoto() {
       const token = localStorage.getItem("authToken");
       const userID = localStorage.getItem("userID");
-
-      if (!userID || !token) {
-        console.warn("🚨 Missing user ID or token.");
-        return;
-      }
-
+      if (!userID || !token) { console.warn("🚨 Missing user ID or token."); return; }
       try {
         console.log("🔍 Fetching profile photo from API...");
-        const response = await axios.get(`http://localhost:3000/users/${userID}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
+        const response = await axios.get(`/users/${userID}`, { headers: { Authorization: `Bearer ${token}` } });
         console.log("📝 Full API Response:", response.data); // 🚀 Debugging step
-
-        if (response.status === 404) {
-          console.error("🚨 User not found in database.");
-          return;
-        }
-
+        if (response.status === 404) { console.error("🚨 User not found in database."); return; }
         if (response.data.photo) {
           console.log("📸 Raw photo value from API:", response.data.photo); // 🚀 Debugging step
-
           if (typeof response.data.photo === "string") {
-            this.profilePhoto = `http://localhost:3000${response.data.photo}`;
+            this.profilePhoto = axios.defaults.baseURL + response.data.photo;
             localStorage.setItem(`profilePhoto_${userID}`, this.profilePhoto);
             console.log("✅ Final profile photo URL:", this.profilePhoto);
           } else {
@@ -60,14 +45,8 @@ export default {
             console.log("🧐 Actual type:", typeof response.data.photo, "| Value:", response.data.photo);
             this.profilePhoto = "";
           }
-        } else {
-          console.warn("🚨 No profile photo found for user.");
-          this.profilePhoto = ""; // Default empty state
-        }
-      } catch (error) {
-        console.error("❌ Error fetching profile photo:", error);
-        this.profilePhoto = ""; // Prevent UI from breaking
-      }
+        } else { console.warn("🚨 No profile photo found for user."); this.profilePhoto = ""; }
+      } catch (error) { console.error("❌ Error fetching profile photo:", error); this.profilePhoto = ""; }
     }
   }
 };

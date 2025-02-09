@@ -105,22 +105,33 @@ func (rt *_router) setMyUserName(w http.ResponseWriter, r *http.Request, ps http
 		return
 	}
 
+	// Try to find any user that already has the requested new username
 	existingUser, err := rt.db.GetUser(input.NewName)
 	if err != nil {
-		context.Logger.WithError(err).Error("Error getting user from databse")
-		http.Error(w, "Error getting user", http.StatusInternalServerError)
+		// If the DB says "no rows," that simply means no user has that name—so it's safe to proceed.
+		// Otherwise, treat as an error and stop.
+		if !errors.Is(err, sql.ErrNoRows) {
+			context.Logger.WithError(err).Error("Error checking existing user")
+			http.Error(w, "Error checking existing user", http.StatusInternalServerError)
+			return
+		}
 	}
-	if existingUser.Username != "" {
+
+	// If a user *does* exist with that name, check whether it’s a *different* user.
+	if existingUser.Username != "" && existingUser.ID != userID {
+		// Another user already has this name => conflict
 		http.Error(w, "Username already exists", http.StatusConflict)
 		return
 	}
 
+	// Otherwise, proceed to update
 	err = rt.db.UpdateUserName(userID, input.NewName)
 	if err != nil {
 		http.Error(w, "Failed to update username", http.StatusInternalServerError)
 		return
 	}
 
+	// Success
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"message": "Username updated successfully"})
 }

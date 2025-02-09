@@ -30,63 +30,36 @@
 </template>
 
 <script>
-import axios from "axios";
-
+import axios from '../services/axios.js';
 export default {
   name: "UsernameView",
   data() {
-    return {
-      newUsername: "",
-      isLoggedIn: false,
-      successMessage: "",
-      errorMessage: "",
-    };
+    return { newUsername: "", isLoggedIn: false, successMessage: "", errorMessage: "" };
   },
   created() {
     const token = localStorage.getItem("authToken");
-    if (token) {
-      this.isLoggedIn = true;
-    } else {
-      this.isLoggedIn = false;
-      this.$router.push("/"); // Redirect if not logged in
-    }
+    if (token) { this.isLoggedIn = true; } else { this.isLoggedIn = false; this.$router.push("/"); }
   },
   methods: {
     async updateUsername() {
+      this.errorMessage = "";
+      const token = localStorage.getItem("authToken");
+      if (!token) { this.errorMessage = "You must be logged in."; return; }
+      try {
+        console.log("Updating username:", this.newUsername);
+        console.log("Auth Token:", token);
+        const response = await axios.put(`/users/me/username?t=${new Date().getTime()}`, { newname: this.newUsername }, {
+          headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" }
+        });
+        console.log("Response:", response);
+        localStorage.setItem("username", this.newUsername);
+        this.successMessage = "Username updated successfully!";
         this.errorMessage = "";
-        const token = localStorage.getItem("authToken");
-
-        if (!token) {
-            this.errorMessage = "You must be logged in.";
-            return;
-        }
-
-        try {
-            console.log("Updating username:", this.newUsername); // Debugging log
-            console.log("Auth Token:", token); // Debugging log
-
-            const response = await axios.put(`http://localhost:3000/users/me/username?t=${new Date().getTime()}`, 
-                { newname: this.newUsername },
-                {
-                    headers: {
-                        "Authorization": `Bearer ${token}`, // ✅ Ensure correct token format
-                        "Content-Type": "application/json"
-                    }
-                }
-            );
-
-            console.log("Response:", response); // Debugging log
-            localStorage.setItem("username", this.newUsername);
-            this.successMessage = "Username updated successfully!";
-            this.errorMessage = "";
-
-            setTimeout(() => {
-                this.$router.push("/home");
-            }, 1000);
-        } catch (error) {
-            console.error("Error updating username:", error);
-            this.errorMessage = error.response?.data?.error || "An error occurred. Please try again.";
-        }
+        setTimeout(() => { this.$router.push("/home"); }, 1000);
+      } catch (error) {
+        console.error("Error updating username:", error);
+        this.errorMessage = error.response?.data?.error || "An error occurred. Please try again.";
+      }
     }
   }
 };

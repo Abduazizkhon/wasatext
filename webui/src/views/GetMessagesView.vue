@@ -1,6 +1,6 @@
 <template>
   <div class="page-wrapper">
-      <!-- 1) This is our Leave Group button, shown only if it is a group. -->
+    <!-- Leave Group button (shown only if it is a group) -->
     <button
       v-if="isGroup"
       class="leave-group-button"
@@ -8,7 +8,8 @@
     >
       Leave Group
     </button>
-        <!-- Add User button (only for groups) -->
+
+    <!-- Add User button (only for groups) -->
     <button
       v-if="isGroup"
       class="add-user-button"
@@ -34,7 +35,8 @@
       <button @click="addUserToGroup">Add</button>
       <button @click="cancelAddUser">Cancel</button>
     </div>
-        <!-- 1) New: "Set Name" button -->
+
+    <!-- Set Name button (only for groups) -->
     <button
       v-if="isGroup"
       class="set-name-button"
@@ -43,7 +45,7 @@
       Set Name
     </button>
 
-    <!-- 2) New: "Set Name" form -->
+    <!-- Set Name form -->
     <div
       v-if="isGroup && showSetNameForm"
       class="set-name-form"
@@ -61,7 +63,7 @@
       <button @click="cancelSetName">Cancel</button>
     </div>
 
-        <!-- 1) New: Set Photo button -->
+    <!-- Set Photo button (only for groups) -->
     <button
       v-if="isGroup"
       class="set-photo-button"
@@ -70,39 +72,33 @@
       Set Photo
     </button>
 
-    <!-- 2) New: Set Photo form (shows when showSetPhotoForm === true) -->
+    <!-- Set Photo form -->
     <div
       v-if="isGroup && showSetPhotoForm"
       class="set-photo-form"
       @click.stop
     >
-    <input
-    type="file"
-    accept="image/*"
-    @click="onPhotoInputClick"
-    @change="handleGroupPhotoChange"
-    />
+      <input
+        type="file"
+        accept="image/*"
+        @click="onPhotoInputClick"
+        @change="handleGroupPhotoChange"
+      />
       <button @click="updateGroupPhoto">Save</button>
       <button @click="cancelSetPhoto">Cancel</button>
     </div>
-    
 
     <!-- The scrollable area with messages -->
     <div class="messages-container" ref="messagesContainer">
       <h1>Messages</h1>
 
       <div v-if="loading">Loading messages...</div>
-
-      <!-- Check if it's a group and there are no messages -->
       <div v-else-if="messages.length === 0 && isGroup">
         <p>There are no messages yet</p>
       </div>
-
-      <!-- Default case: display messages -->
       <div v-else-if="messages.length === 0">
         <p>No messages yet.</p>
       </div>
-
       <ul v-else>
         <li v-for="message in messages" :key="message.id" class="message-item">
           <div class="message-info">
@@ -115,12 +111,42 @@
             <div class="message-content">
               <div class="message-header">
                 <span>{{ message.sender_username }}</span>
+                <span v-if="message.status === 'forwarded'" class="forwarded-label">
+                  Forwarded
+                </span>
                 <span class="message-time">{{ formatDate(message.datetime) }}</span>
 
-                <!-- Simple condition for displaying the delete button (for debugging) -->
-                <button v-if="true" @click="deleteMessage(message.id)" class="delete-button">Delete</button>
+                <!-- Delete button (if message sent by current user) -->
+                <button
+                  v-if="message.sender_id === currentUser"
+                  @click="deleteMessage(message.id)"
+                  class="delete-button"
+                >
+                  Delete
+                </button>
+                <!-- Forward button -->
+                <button class="forward-button" @click="toggleForwardPanel(message)">
+                  {{ message.showForwardPanel ? 'Cancel Forward' : 'Forward' }}
+                </button>
+                <!-- Forward Panel -->
+                <div v-if="message.showForwardPanel" class="forward-panel">
+                  <input
+                    type="text"
+                    v-model="message.forwardTarget"
+                    placeholder="Forward to (username or group)"
+                  />
+                  <button @click="forwardMessageHandler(message)">Forward</button>
+                </div>
+                <!-- Comment button toggles the comment section -->
+                <button
+                  class="comment-button"
+                  @click="toggleComments(message)"
+                >
+                  {{ message.showComments ? 'Hide Comments' : 'Comment' }}
+                </button>
               </div>
 
+              <!-- Message content (text, image, or GIF) -->
               <div v-if="isImage(message.content)">
                 <img
                   :src="getImageUrl(message.content)"
@@ -138,13 +164,43 @@
               <div v-else>
                 <p class="message-text">{{ message.content }}</p>
               </div>
+
+              <!-- Comments Section -->
+              <div v-if="message.showComments" class="comments-section">
+                <!-- Display each comment -->
+                <div v-for="(c, idx) in message.comments" :key="c.id" class="single-comment">
+                  <p class="comment-header">
+                    <strong>{{ c.username }}</strong>
+                    <span class="comment-time">{{ formatDate(c.timestamp) }}</span>
+                    <!-- Delete comment button (if owned by current user) -->
+                    <button
+                      v-if="c.user_id === currentUser"
+                      @click="deleteComment(message, c)"
+                      class="delete-comment-button"
+                    >
+                      Delete
+                    </button>
+                  </p>
+                  <p class="comment-text">{{ c.content }}</p>
+                </div>
+
+                <!-- Add New Comment Form -->
+                <div class="add-comment-form">
+                  <input
+                    type="text"
+                    v-model="message.newComment"
+                    placeholder="Type your comment..."
+                  />
+                  <button @click="addComment(message)">Add Comment</button>
+                </div>
+              </div>
             </div>
           </div>
         </li>
       </ul>
     </div>
 
-    <!-- The pinned input bar at the bottom -->
+    <!-- Message Input Bar -->
     <div class="message-input-bar">
       <textarea
         v-model="messageText"
@@ -171,12 +227,12 @@
 </template>
 
 <script>
-import axios from 'axios';
-
+import axios from '../services/axios.js';
 export default {
   name: "GetMessagesView",
   data() {
     return {
+      currentUser: localStorage.getItem("userID"),
       messages: [],
       loading: true,
       isGroup: false,
@@ -184,429 +240,194 @@ export default {
       selectedFile: null,
       isInteracting: false,
       reloadInterval: null,
-
-      // NEW DATA PROPERTIES
-      showAddUserForm: false,  // Toggle the form visibility
-      usernameToAdd: '',       // The username typed by the user
+      showAddUserForm: false,
+      usernameToAdd: '',
       showSetNameForm: false,
       newGroupName: '',
-      // NEW: for "Set Photo"
-      showSetPhotoForm: false,     // Toggle the form
-      newGroupPhotoFile: null,     // Hold the file user selected
+      showSetPhotoForm: false,
+      newGroupPhotoFile: null,
     };
   },
   async created() {
-    const token = localStorage.getItem("authToken");
-    const conversationID = this.$route.params.c_id;
-
-    if (!token || !conversationID) {
-      console.warn("🚨 Missing token or conversation ID. Cannot load messages.");
-      return;
-    }
-
-    try {
-      const response = await axios.get(
-        `http://localhost:3000/conversations/${conversationID}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      this.messages = Array.isArray(response.data.messages) ? response.data.messages : [];
-      this.isGroup = response.data.conversation.is_group;
-    } catch (error) {
-      console.error("❌ Error fetching messages:", error);
-    } finally {
-      this.loading = false;
-    }
+    await this.getConversation();
   },
   mounted() {
-    this.$nextTick(() => {
-      this.scrollToBottom();
-    });
-
-    this.reloadInterval = setInterval(() => {
-      // Only reload if user not interacting
-      if (!this.isInteracting) {
-        window.location.reload();
-      }
-    }, 5000);
+    this.$nextTick(() => { this.scrollToBottom(); });
+    this.reloadInterval = setInterval(() => { if (!this.isInteracting) { this.getConversation(); } }, 1000);
   },
-  beforeDestroy() {
-    if (this.reloadInterval) {
-      clearInterval(this.reloadInterval);
-    }
+  beforeUnmount() {
+    if (this.reloadInterval) { clearInterval(this.reloadInterval); }
   },
   methods: {
+    async getConversation() {
+      const token = localStorage.getItem("authToken");
+      const conversationID = this.$route.params.c_id;
+      if (!token || !conversationID) { console.warn("Missing token or conversation ID. Cannot fetch conversation."); return; }
+      try {
+        const response = await axios.get(`conversations/${conversationID}`, { headers: { Authorization: `Bearer ${token}` } });
+        const fetchedMessages = Array.isArray(response.data.messages) ? response.data.messages : [];
+        this.messages = fetchedMessages.map((msg) => ({ ...msg, comments: [], newComment: '', showComments: false, showForwardPanel: false, forwardTarget: '' }));
+        this.isGroup = response.data.conversation.is_group;
+      } catch (error) { console.error("Error fetching conversation:", error); }
+      finally { this.loading = false; }
+    },
     scrollToBottom() {
       const container = this.$refs.messagesContainer;
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
+      if (container) { container.scrollTop = container.scrollHeight; }
     },
     formatDate(dateString) {
       const date = new Date(dateString);
       return date.toLocaleString();
     },
-    isImage(content) {
-      return /\.(jpg|jpeg|png)$/i.test(content);
-    },
-    isGif(content) {
-      return /\.(gif)$/i.test(content);
-    },
-    handleFileChange(event) {
-      this.selectedFile = event.target.files[0];
-    },
-    checkInteraction() {
-      if (this.messageText.trim() || this.selectedFile) {
-        this.isInteracting = true;
-      } else {
-        this.isInteracting = false;
-      }
-    },
+    isImage(content) { return /\.(jpg|jpeg|png)$/i.test(content); },
+    isGif(content) { return /\.(gif)$/i.test(content); },
+    handleFileChange(event) { this.selectedFile = event.target.files[0]; },
+    checkInteraction() { this.isInteracting = this.messageText.trim() || this.selectedFile ? true : false; },
     async sendMessage() {
       const token = localStorage.getItem("authToken");
       const conversationID = this.$route.params.c_id;
-
-      if (!token || !conversationID) {
-        console.warn("🚨 Missing token or conversation ID. Cannot send message.");
-        return;
-      }
-
+      if (!token || !conversationID) { console.warn("Missing token or conversation ID. Cannot send message."); return; }
       let formData = new FormData();
       formData.append("content", this.messageText);
       formData.append("content_type", "text");
-
-      if (this.selectedFile) {
-        formData.append("file", this.selectedFile);
-        formData.append("content_type", "photo");
-      }
-
+      if (this.selectedFile) { formData.append("file", this.selectedFile); formData.append("content_type", "photo"); }
       try {
-        const response = await axios.post(
-          `http://localhost:3000/conversations/${conversationID}/messages`,
-          formData,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "multipart/form-data",
-            },
-          }
-        );
-
+        const response = await axios.post(`/conversations/${conversationID}/messages`, formData, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } });
+        const baseURL = axios.defaults.baseURL;
         const newMessage = {
+          id: response.data.message_id || Date.now(),
           content: response.data.content,
           sender_username: response.data.sender_username,
-          sender_photo: response.data.sender_photo
-            ? `http://localhost:3000${response.data.sender_photo}`
-            : '/default-profile.png',
+          sender_photo: response.data.sender_photo ? (response.data.sender_photo.startsWith(baseURL) ? response.data.sender_photo : baseURL + response.data.sender_photo) : '/default-profile.png',
           datetime: new Date().toISOString(),
+          sender_id: this.currentUser,
+          comments: [],
+          newComment: '',
+          showComments: false
         };
-
         this.messages.push(newMessage);
-
         this.messageText = '';
         this.selectedFile = null;
         this.isInteracting = false;
-
-        this.$nextTick(() => {
-          this.scrollToBottom();
-          window.location.reload();
-        });
-      } catch (error) {
-        console.error("❌ Error sending message:", error);
-      }
+        this.$nextTick(() => { this.scrollToBottom(); });
+      } catch (error) { console.error("Error sending message:", error); }
     },
     getImageUrl(imagePath) {
-      return imagePath && imagePath.startsWith('/uploads')
-        ? `http://localhost:3000${imagePath}`
-        : '/default-profile.png';
+      const baseURL = axios.defaults.baseURL;
+      return imagePath && imagePath.startsWith('/uploads') ? baseURL + imagePath : '/default-profile.png';
     },
-
-    // Debugging delete functionality
     async deleteMessage(messageId) {
-      console.log("Attempting to delete message with ID:", messageId);
       const conversationID = this.$route.params.c_id;
       const token = localStorage.getItem("authToken");
-
+      try { await axios.delete(`/conversations/${conversationID}/messages/${messageId}`, { headers: { Authorization: `Bearer ${token}` } }); this.messages = this.messages.filter((message) => message.id !== messageId); }
+      catch (error) { console.error("Error deleting message:", error); }
+    },
+    async deleteComment(message, comment) {
+      const token = localStorage.getItem("authToken");
+      const conversationID = this.$route.params.c_id;
+      if (!token || !conversationID) { console.warn("Missing token or conversation ID. Cannot delete comment."); return; }
+      try { await axios.delete(`/conversations/${conversationID}/messages/${message.id}/comments/${comment.id}`, { headers: { Authorization: `Bearer ${token}` } }); message.comments = message.comments.filter(c => c.id !== comment.id); alert("Comment deleted successfully!"); }
+      catch (error) { console.error("Error deleting comment:", error); alert("Error deleting comment. Check console for details."); }
+    },
+    async toggleComments(message) {
+      message.showComments = !message.showComments;
+      if (message.showComments) {
+        this.isInteracting = true;
+        const token = localStorage.getItem("authToken");
+        try { const response = await axios.get(`/messages/${message.id}/comments`, { headers: { Authorization: `Bearer ${token}` } }); message.comments = response.data; }
+        catch (error) { console.error("Error fetching comments:", error); }
+      } else { this.$nextTick(() => { const anyOpen = this.messages.some((msg) => msg.showComments); if (!anyOpen) { this.isInteracting = false; } }); }
+    },
+    async addComment(message) {
+      if (!message.newComment.trim()) { alert("Please type a comment first."); return; }
+      const token = localStorage.getItem("authToken");
+      const conversationID = this.$route.params.c_id;
+      if (!token || !conversationID) { console.warn("Missing token or conversation ID. Cannot comment."); return; }
       try {
-        await axios.delete(
-          `http://localhost:3000/conversations/${conversationID}/messages/${messageId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        console.log("Message deleted successfully.");
-        this.messages = this.messages.filter((message) => message.id !== messageId);
-      } catch (error) {
-        console.error("❌ Error deleting message:", error);
-      }
+        await axios.post(`/conversations/${conversationID}/messages/${message.id}/comments`, { content_type: "text", content: message.newComment.trim() }, { headers: { Authorization: `Bearer ${token}` } });
+        const response = await axios.get(`/messages/${message.id}/comments`, { headers: { Authorization: `Bearer ${token}` } });
+        message.comments = response.data;
+        message.newComment = '';
+        alert("Comment added successfully!");
+      } catch (error) { console.error("Error adding comment:", error); alert("Error adding comment. Check console for details."); }
+    },
+    toggleForwardPanel(message) {
+      message.showForwardPanel = !message.showForwardPanel;
+      if (message.showForwardPanel) { this.isInteracting = true; }
+      else { if (!this.messages.some(msg => msg.showForwardPanel)) { this.isInteracting = false; } }
+    },
+    async forwardMessageHandler(message) {
+      const token = localStorage.getItem("authToken");
+      const conversationID = this.$route.params.c_id;
+      if (!token || !conversationID) { console.warn("Missing token or conversation ID. Cannot forward message."); return; }
+      if (!message.forwardTarget.trim()) { alert("Please specify a username or group name to forward to."); return; }
+      let targetConversationID = "";
+      if (!isNaN(message.forwardTarget)) { targetConversationID = message.forwardTarget; }
+      else { targetConversationID = "new"; }
+      try {
+        let payload = {};
+        if (targetConversationID === "new") { payload = { target_username: message.forwardTarget.trim() }; }
+        await axios.post(`/conversations/${conversationID}/messages/${message.id}/forward/${targetConversationID}`, payload, { headers: { Authorization: `Bearer ${token}` } });
+        alert("Message forwarded successfully!");
+        message.showForwardPanel = false;
+        message.forwardTarget = "";
+        message.status = "forwarded";
+        if (!this.messages.some(msg => msg.showForwardPanel)) { this.isInteracting = false; }
+      } catch (error) { console.error("Error forwarding message:", error); alert("Error forwarding message. Check console for details."); }
     },
     async leaveGroup() {
       const token = localStorage.getItem("authToken");
       const conversationID = this.$route.params.c_id;
-      if (!token || !conversationID) {
-        console.warn("🚨 Missing token or conversation ID. Cannot leave group.");
-        return;
-      }
-
-      try {
-        await axios.delete(
-          `http://localhost:3000/groups/${conversationID}/leave`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        console.log("✅ Group left successfully.");
-        // Redirect to conversation list after leaving
-        this.$router.push("/conversations");
-      } catch (error) {
-        console.error("❌ Error leaving group:", error);
-      }
+      if (!token || !conversationID) { console.warn("Missing token or conversation ID. Cannot leave group."); return; }
+      try { await axios.delete(`/groups/${conversationID}/leave`, { headers: { Authorization: `Bearer ${token}` } }); this.$router.push("/conversations"); }
+      catch (error) { console.error("Error leaving group:", error); }
     },
-
-    // NEW METHODS BELOW
-
-    // Show/hide the add user form
-    toggleAddUserForm() {
-      this.showAddUserForm = !this.showAddUserForm;
-      // If opening the form, also temporarily disable auto-refresh
-      if (this.showAddUserForm) {
-        this.isInteracting = true;
-      } else {
-        this.isInteracting = false;
-      }
-    },
-
-    // Explicitly disable auto-refresh
-    disableAutoRefresh() {
-      this.isInteracting = true;
-    },
-
-    // Re-enable auto-refresh
-    enableAutoRefresh() {
-      // Only re-enable if the username field is empty
-      if (!this.usernameToAdd.trim()) {
-        this.isInteracting = false;
-      }
-    },
-
-    // Cancel the “Add User” action
-    cancelAddUser() {
-      this.showAddUserForm = false;
-      this.usernameToAdd = '';
-      this.isInteracting = false;
-    },
-
-    // Call POST /groups/:c_id/members endpoint to add user
+    toggleAddUserForm() { this.showAddUserForm = !this.showAddUserForm; this.isInteracting = this.showAddUserForm; },
+    disableAutoRefresh() { this.isInteracting = true; },
+    enableAutoRefresh() { if (!this.usernameToAdd.trim()) { this.isInteracting = false; } },
+    cancelAddUser() { this.showAddUserForm = false; this.usernameToAdd = ''; this.isInteracting = false; },
     async addUserToGroup() {
       const token = localStorage.getItem("authToken");
       const conversationID = this.$route.params.c_id;
-      if (!token || !conversationID) {
-        console.warn("🚨 Missing token or conversation ID. Cannot add user.");
-        return;
-      }
-
-      // Basic validation
-      if (!this.usernameToAdd.trim()) {
-        alert("Please enter a valid username.");
-        return;
-      }
-
-      try {
-        const data = {
-          usernames: [this.usernameToAdd.trim()]
-        };
-        const response = await axios.post(
-          `http://localhost:3000/groups/${conversationID}/members`,
-          data,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        console.log("✅ User(s) added:", response.data.added_users);
-
-        // Feedback to the user
-        alert(`User '${this.usernameToAdd.trim()}' added successfully!`);
-
-        // Reset form
-        this.usernameToAdd = '';
-        this.showAddUserForm = false;
-        this.isInteracting = false;
-
-        // Optional: Reload page to see updated members, or do something else
-        // window.location.reload();
-
-      } catch (error) {
-        console.error("❌ Error adding user to group:", error);
-        if (error.response && error.response.data) {
-          alert(`Failed to add user: ${error.response.data}`);
-        } else {
-          alert("Error adding user. Check console for details.");
-        }
-      }
+      if (!token || !conversationID) { console.warn("Missing token or conversation ID. Cannot add user."); return; }
+      if (!this.usernameToAdd.trim()) { alert("Please enter a valid username."); return; }
+      try { const data = { usernames: [this.usernameToAdd.trim()] }; await axios.post(`/groups/${conversationID}/members`, data, { headers: { Authorization: `Bearer ${token}` } }); alert(`User '${this.usernameToAdd.trim()}' added successfully!`); this.usernameToAdd = ''; this.showAddUserForm = false; this.isInteracting = false; }
+      catch (error) { console.error("Error adding user to group:", error); alert("Error adding user. Check console for details."); }
     },
-        // -----------------------------
-    //  NEW: Set Name feature below 
-    // -----------------------------
-
-    // Toggle the "Set Name" form
-    toggleSetNameForm() {
-      this.showSetNameForm = !this.showSetNameForm;
-      // Temporarily disable auto-refresh if form is open
-      if (this.showSetNameForm) {
-        this.isInteracting = true;
-      } else {
-        this.isInteracting = false;
-      }
-    },
-
-    // Cancel the "Set Name" action
-    cancelSetName() {
-      this.showSetNameForm = false;
-      this.newGroupName = '';
-      this.isInteracting = false;
-    },
-
-    // PUT /groups/:c_id/name to update the group name
+    toggleSetNameForm() { this.showSetNameForm = !this.showSetNameForm; this.isInteracting = this.showSetNameForm; },
+    cancelSetName() { this.showSetNameForm = false; this.newGroupName = ''; this.isInteracting = false; },
     async updateGroupName() {
       const token = localStorage.getItem("authToken");
       const conversationID = this.$route.params.c_id;
-
-      if (!token || !conversationID) {
-        console.warn("🚨 Missing token or conversation ID. Cannot set group name.");
-        return;
-      }
-
-      // Basic validation
-      if (!this.newGroupName.trim()) {
-        alert("Please enter a valid group name.");
-        return;
-      }
-
-      try {
-        // The API expects { new_name: "<name>" }
-        await axios.put(
-          `http://localhost:3000/groups/${conversationID}/name`,
-          { new_name: this.newGroupName.trim() },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        alert(`Group name updated to: "${this.newGroupName.trim()}"`);
-        this.showSetNameForm = false;
-        this.isInteracting = false;
-
-        // Optionally reload page or do something else
-        // window.location.reload();
-
-      } catch (error) {
-        console.error("❌ Error setting group name:", error);
-        if (error.response && error.response.data) {
-          alert(`Failed to set group name: ${error.response.data}`);
-        } else {
-          alert("Error setting group name. Check console for details.");
-        }
-      }
+      if (!token || !conversationID) { console.warn("Missing token or conversation ID. Cannot set group name."); return; }
+      if (!this.newGroupName.trim()) { alert("Please enter a valid group name."); return; }
+      try { await axios.put(`/groups/${conversationID}/name`, { new_name: this.newGroupName.trim() }, { headers: { Authorization: `Bearer ${token}` } }); alert(`Group name updated to: "${this.newGroupName.trim()}"`); this.showSetNameForm = false; this.isInteracting = false; }
+      catch (error) { console.error("Error setting group name:", error); alert("Error setting group name. Check console for details."); }
     },
-
-    // -----------------------------
-    // NEW: Set Photo feature below
-    // -----------------------------
-      onPhotoInputClick() {
-    this.isInteracting = true;
-  },
-
-  handleGroupPhotoChange(event) {
-    this.newGroupPhotoFile = event.target.files[0] || null;
-    // Keep isInteracting = true for now.
-    // If user cancels the file dialog, you may not get a change event,
-    // but at least the page won't reload in the middle of picking a file.
-  },
-
-  cancelSetPhoto() {
-    // If user hits "Cancel" in your own form, then set isInteracting = false
-    this.showSetPhotoForm = false;
-    this.newGroupPhotoFile = null;
-    this.isInteracting = false;  
-  },
-
-    // Toggle the "Set Photo" form
-    toggleSetPhotoForm() {
-      this.showSetPhotoForm = !this.showSetPhotoForm;
-      if (this.showSetPhotoForm) {
-        this.isInteracting = true; // Stop auto-refresh
-      } else {
-        this.isInteracting = false;
-      }
-    },
-
-    // Cancel the "Set Photo" action
-    cancelSetPhoto() {
-      this.showSetPhotoForm = false;
-      this.newGroupPhotoFile = null;
-      this.isInteracting = false;
-    },
-
-    // Handle file selection for the group photo
-    handleGroupPhotoChange(event) {
-      this.newGroupPhotoFile = event.target.files[0] || null;
-      // Optionally disable auto-refresh on file selection
-      this.isInteracting = true;
-    },
-
-    // PUT /conversations/:c_id/set-group-photo with the chosen file
+    onPhotoInputClick() { this.isInteracting = true; },
+    handleGroupPhotoChange(event) { this.newGroupPhotoFile = event.target.files[0] || null; this.isInteracting = true; },
+    cancelSetPhoto() { this.showSetPhotoForm = false; this.newGroupPhotoFile = null; this.isInteracting = false; },
+    toggleSetPhotoForm() { this.showSetPhotoForm = !this.showSetPhotoForm; this.isInteracting = this.showSetPhotoForm; },
     async updateGroupPhoto() {
       const token = localStorage.getItem("authToken");
       const conversationID = this.$route.params.c_id;
-
-      if (!token || !conversationID) {
-        console.warn("🚨 Missing token or conversation ID. Cannot set group photo.");
-        return;
-      }
-
-      // Ensure a file is chosen
-      if (!this.newGroupPhotoFile) {
-        alert("Please select a photo file.");
-        return;
-      }
-
-      try {
-        const formData = new FormData();
-        // The API endpoint expects "photo" as the field name
-        formData.append("photo", this.newGroupPhotoFile);
-
-        await axios.put(
-          `http://localhost:3000/conversations/${conversationID}/set-group-photo`,
-          formData,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "multipart/form-data",
-            },
-          }
-        );
-
-        alert("✅ Group photo updated successfully!");
-        this.showSetPhotoForm = false;
-        this.newGroupPhotoFile = null;
-        this.isInteracting = false;
-
-        // Optionally reload
-        // window.location.reload();
-      } catch (error) {
-        console.error("❌ Error setting group photo:", error);
-        if (error.response && error.response.data) {
-          alert(`Failed to set group photo: ${error.response.data}`);
-        } else {
-          alert("Error setting group photo. Check console for details.");
-        }
-      }
-    },
-  },
+      if (!token || !conversationID) { console.warn("Missing token or conversation ID. Cannot set group photo."); return; }
+      if (!this.newGroupPhotoFile) { alert("Please select a photo file."); return; }
+      try { const formData = new FormData(); formData.append("photo", this.newGroupPhotoFile); await axios.put(`/conversations/${conversationID}/set-group-photo`, formData, { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } }); alert("Group photo updated successfully!"); this.showSetPhotoForm = false; this.newGroupPhotoFile = null; this.isInteracting = false; }
+      catch (error) { console.error("Error setting group photo:", error); alert("Error setting group photo. Check console for details."); }
+    }
+  }
 };
 </script>
 
-
 <style scoped>
-/* "Set Photo" button (placed below the Set Name button) */
-.set-photo-button {
+/* Position the "Leave Group" button */
+.leave-group-button {
   position: fixed;
-  top: 200px; /* Adjust as needed */
+  top: 50px;
   right: 25px;
   z-index: 999;
-  background-color: #2196f3; /* blue-ish */
+  background-color: #f44336;
   color: white;
   border: none;
   border-radius: 4px;
@@ -614,84 +435,14 @@ export default {
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
-.set-photo-button:hover {
-  background-color: #1976d2;
+.leave-group-button:hover {
+  background-color: #c62828;
 }
 
-/* "Set Photo" form (below the button) */
-.set-photo-form {
-  position: fixed;
-  top: 250px; /* Just below the button */
-  right: 25px;
-  z-index: 1000;
-  background-color: #fff;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 10px;
-  width: 200px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
-.set-photo-form input {
-  width: 100%;
-  margin-bottom: 10px;
-  padding: 6px;
-  box-sizing: border-box;
-}
-
-.set-photo-form button {
-  margin-right: 6px;
-  padding: 5px 10px;
-  cursor: pointer;
-}
-/* "Set Name" button */
-.set-name-button {
-  position: fixed;
-  top: 150px; /* Just below the "Add User" button (adjust as needed) */
-  right: 25px;
-  z-index: 999;
-  background-color: #ff9800; /* orange-ish */
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 10px 15px;
-  cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-.set-name-button:hover {
-  background-color: #f57c00;
-}
-
-/* "Set Name" form */
-.set-name-form {
-  position: fixed;
-  top: 200px; /* Just below the button */
-  right: 25px;
-  z-index: 1000;
-  background-color: #fff;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 10px;
-  width: 200px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-}
-
-.set-name-form input {
-  width: 100%;
-  margin-bottom: 10px;
-  padding: 6px;
-  box-sizing: border-box;
-}
-
-.set-name-form button {
-  margin-right: 6px;
-  padding: 5px 10px;
-  cursor: pointer;
-}
-/* Position the "Add User" button near the "Leave Group" button */
+/* Position the "Add User" button below Leave Group */
 .add-user-button {
   position: fixed;
-  top: 100px; /* Just below the "Leave Group" button (adjust as needed) */
+  top: 100px;
   right: 25px;
   z-index: 999;
   background-color: #4caf50;
@@ -706,10 +457,10 @@ export default {
   background-color: #388e3c;
 }
 
-/* The form container that appears for adding a user */
+/* The form for adding a user */
 .add-user-form {
   position: fixed;
-  top: 150px; /* Just below the "Add User" button */
+  top: 150px;
   right: 25px;
   z-index: 1000;
   background-color: #fff;
@@ -719,25 +470,25 @@ export default {
   width: 200px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
-
 .add-user-form input {
   width: 100%;
   margin-bottom: 10px;
   padding: 6px;
   box-sizing: border-box;
 }
-
 .add-user-form button {
   margin-right: 6px;
   padding: 5px 10px;
   cursor: pointer;
 }
-.leave-group-button {
-  position: fixed;      /* Fix position relative to viewport */
-  top: 50px;
+
+/* Set Name button */
+.set-name-button {
+  position: fixed;
+  top: 150px;
   right: 25px;
-  z-index: 999;         /* Ensure it stays on top of other elements */
-  background-color: #f44336;
+  z-index: 999;
+  background-color: #ff9800;
   color: white;
   border: none;
   border-radius: 4px;
@@ -745,11 +496,187 @@ export default {
   cursor: pointer;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
-
-.leave-group-button:hover {
-  background-color: #c62828;
+.set-name-button:hover {
+  background-color: #f57c00;
 }
-/* Add a button for delete functionality */
+
+/* Set Name form */
+.set-name-form {
+  position: fixed;
+  top: 200px;
+  right: 25px;
+  z-index: 1000;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 10px;
+  width: 200px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+.set-name-form input {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+.set-name-form button {
+  margin-right: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+/* Set Photo button */
+.set-photo-button {
+  position: fixed;
+  top: 200px;
+  right: 25px;
+  z-index: 999;
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 15px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.set-photo-button:hover {
+  background-color: #1976d2;
+}
+
+/* Set Photo form */
+.set-photo-form {
+  position: fixed;
+  top: 250px;
+  right: 25px;
+  z-index: 1000;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 10px;
+  width: 200px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+.set-photo-form input {
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+.set-photo-form button {
+  margin-right: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+/* "Comment" button & comment section styling */
+.comment-button {
+  background-color: #9c27b0;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 8px;
+  margin-left: 8px;
+  cursor: pointer;
+}
+.comment-button:hover {
+  background-color: #7b1fa2;
+}
+.comments-section {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 6px;
+  background-color: #f2f2f2;
+}
+.single-comment {
+  background-color: #fff;
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+.comment-text {
+  margin: 0;
+  font-size: 0.9rem;
+  word-wrap: break-word;
+}
+.add-comment-form {
+  display: flex;
+  margin-top: 6px;
+  gap: 6px;
+}
+.add-comment-form input[type="text"] {
+  flex: 1;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 6px;
+}
+.add-comment-form button {
+  background-color: #4caf50;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.add-comment-form button:hover {
+  background-color: #388e3c;
+}
+
+/* Layout: page, messages container, and input bar */
+.page-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background-color: #f7f7f7;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+.message-input-bar {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  background-color: #fdfdfd;
+  border-top: 1px solid #ccc;
+  margin-bottom: 40px;
+  flex-shrink: 0;
+}
+.message-item {
+  list-style: none;
+  margin: 15px 0;
+  display: flex;
+  flex-direction: column;
+}
+.message-info {
+  display: flex;
+  gap: 10px;
+}
+.sender-photo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.message-content {
+  background-color: #fff;
+  border-radius: 10px;
+  padding: 10px;
+  max-width: 80%;
+}
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+.message-time {
+  font-size: 0.8rem;
+  color: #777;
+  margin-left: 10px;
+}
 .delete-button {
   background-color: red;
   color: white;
@@ -757,119 +684,40 @@ export default {
   border-radius: 4px;
   padding: 5px 10px;
   cursor: pointer;
+  margin-left: 8px;
 }
-
 .delete-button:hover {
   background-color: darkred;
 }
-/* 
-  The entire page is a column layout.
-  The .messages-container will scroll if content is taller than available space.
-*/
-.page-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100vh; /* Use full viewport height */
-  overflow: hidden; /* Hide any overflow beyond the container */
-}
-
-/* The scrollable area with messages occupies the main vertical space,
-   leaving room at the bottom for the pinned input bar */
-.messages-container {
-  flex: 1; 
-  overflow-y: auto;
-  padding: 20px;
-  background-color: #f7f7f7;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-/* The pinned bottom input bar */
-.message-input-bar {
-  display: flex;
-  align-items: center;
-  padding: 10px;
-  background-color: #fdfdfd; 
-  border-top: 1px solid #ccc;
-  margin-bottom: 40px;  
-  /* pinned to bottom, spanning full width */
-  flex-shrink: 0; /* so it doesn't shrink */
-}
-
-/* Now the rest of your message styling remains the same */
-.message-item {
-  list-style: none;
-  margin: 15px 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.message-info {
-  display: flex;
-  gap: 10px;
-}
-
-.sender-photo {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.message-content {
-  background-color: #fff;
-  border-radius: 10px;
-  padding: 10px;
-  max-width: 80%;
-}
-
-.message-header {
-  display: flex;
-  justify-content: space-between;
-  font-weight: bold;
-  font-size: 0.9rem;
-}
-
-.message-time {
-  font-size: 0.8rem;
-  color: #777;
-}
-
 .message-text {
   margin-top: 10px;
   font-size: 1rem;
   line-height: 1.4;
   word-wrap: break-word;
 }
-
 .message-media {
   width: 100px;
   height: 100px;
   object-fit: cover;
   margin-top: 10px;
 }
-
 .message-item p {
   margin: 5px 0;
 }
-
-/* The input area in the bar */
 .message-textarea {
-  flex: 1; 
+  flex: 1;
   padding: 8px;
   border-radius: 4px;
   border: 1px solid #ccc;
   resize: vertical;
   margin-right: 10px;
 }
-
 .media-upload {
   margin-right: 10px;
 }
-
 .file-input {
   font-size: 1rem;
 }
-
 .send-button {
   padding: 10px;
   background-color: #007bff;
@@ -878,8 +726,61 @@ export default {
   border-radius: 5px;
   cursor: pointer;
 }
-
 .send-button:hover {
   background-color: #0056b3;
+}
+.comment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.delete-comment-button {
+  background: transparent;
+  border: none;
+  color: #e53935;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-left: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background-color 0.2s, color 0.2s;
+}
+.delete-comment-button:hover {
+  background-color: #ffe6e6;
+  color: #b71c1c;
+}
+.forward-button {
+  background-color: #03a9f4;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 8px;
+  cursor: pointer;
+  margin-left: 8px;
+}
+.forward-button:hover {
+  background-color: #0288d1;
+}
+.forward-panel {
+  margin-top: 10px;
+  padding: 6px;
+  background-color: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 4px;
+  display: flex;
+  gap: 6px;
+}
+.forward-panel input[type="text"] {
+  flex: 1;
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.forwarded-label {
+  font-size: 0.8rem;
+  color: #555;
+  margin-left: 8px;
+  font-style: italic;
 }
 </style>

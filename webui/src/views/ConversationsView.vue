@@ -1,6 +1,6 @@
 <template>
   <div class="chats-container">
-    <h1>Your Conversations</h1>
+    <h1>My Conversations</h1>
 
     <div v-if="loading">Loading chats...</div>
 
@@ -19,30 +19,32 @@
               class="chat-photo" 
               @error="setDefaultPhoto($event)"
             />
-            <span>{{ chat.name }}</span>
+            <div class="chat-text-info">
+              <span class="chat-name">{{ chat.name }}</span>
+              <!-- Display the preview for the last message -->
+              <p class="last-message">{{ getLastMessagePreview(chat) }}</p>
+            </div>
           </div>
           <p class="last-convo-time">{{ formatDate(chat.last_convo) }}</p>
         </RouterLink>
       </li>
     </ul>
 
-    <!-- Add a button to navigate to SendMessageFirstView -->
     <div class="start-new-convo">
       <RouterLink to="/sendMessageFirstView">
         <button class="new-convo-btn">Start a New Conversation</button>
       </RouterLink>
-      <!-- Add a button to navigate to CreateGroupView -->
-        <div class="start-new-group">
+      <div class="start-new-group">
         <RouterLink to="/createGroupView">
-            <button class="new-group-btn">Create a New Group</button>
+          <button class="new-group-btn">Create a New Group</button>
         </RouterLink>
-        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import axios from "axios";
+import axios from '../services/axios.js';
 
 export default {
   name: "ConversationsView",
@@ -63,42 +65,36 @@ export default {
 
     try {
       console.log("🔍 Fetching user conversations...");
-      const response = await axios.get(`http://localhost:3000/users/${userID}/conversations`, {
+      const response = await axios.get(`/users/${userID}/conversations`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      console.log("📝 Full API Response:", response.data); // Debugging
+      console.log("📝 Full API Response:", response.data);
 
-    this.conversations = await Promise.all(
-    response.data.map(async (chat) => {
-        let photoURL = "/default-profile.png"; // Default image
+      // Process each chat object from the API and map it to our local conversation object.
+      this.conversations = await Promise.all(
+        response.data.map(async (chat) => {
+          let photoURL = "/default-profile.png"; // Default image
+          const baseURL = axios.defaults.baseURL; // Use the baseURL from axios instance
 
-        // Handle group and individual conversations
-        if (chat.is_group) {
-        // For group chats, we check if a group photo exists
-        if (chat.photo && chat.photo.String && chat.photo.String !== "/default-profile.png") {
-            // Check if the photo already includes 'http://localhost:3000' to avoid duplication
-            photoURL = chat.photo.String.startsWith("http://localhost:3000")
-            ? chat.photo.String // If it already has the full URL, use it directly
-            : `http://localhost:3000${chat.photo.String}`; // Otherwise, prepend the full URL
-        }
-        } else {
-        // For individual chats, handle user photo
-        if (chat.photo && chat.photo.String && chat.photo.String !== "/default-profile.png") {
-            photoURL = chat.photo.String.startsWith("http://localhost:3000")
-            ? chat.photo.String // If it already has the full URL, use it directly
-            : `http://localhost:3000${chat.photo.String}`; // Otherwise, prepend the full URL
-        }
-        }
+          // If a valid photo is provided (i.e. not the default), build its URL using the baseURL.
+          if (chat.photo && chat.photo.String && chat.photo.String !== "/default-profile.png") {
+            photoURL = chat.photo.String.startsWith(baseURL)
+              ? chat.photo.String
+              : `${baseURL}${chat.photo.String}`;
+          }
 
-        return {
-        id: chat.id,
-        name: chat.name || "Unnamed Chat",
-        photo: photoURL, // Corrected photo URL for both groups and users
-        last_convo: chat.last_convo, // Capture last_convo
-        };
-    })
-    );
+          return {
+            id: chat.id,
+            name: chat.name || "Unnamed Chat",
+            photo: photoURL,
+            last_convo: chat.last_convo,
+            // These fields remain as sql.NullString objects (with .Valid and .String)
+            last_message: chat.last_message,
+            last_message_type: chat.last_message_type,
+          };
+        })
+      );
 
       console.log("✅ Processed Conversations Data:", this.conversations);
     } catch (error) {
@@ -111,10 +107,35 @@ export default {
     setDefaultPhoto(event) {
       event.target.src = "/default-profile.png";
     },
-
     formatDate(dateString) {
       const date = new Date(dateString);
       return date.toLocaleString();
+    },
+    /**
+     * Returns a preview for the last message:
+     * - If the type is "text", returns a truncated version (first 20 characters with ellipsis if longer).
+     * - If the type is "photo" or "gif", returns the literal string "photo" or "gif".
+     * - Otherwise, returns an empty string.
+     *
+     * This method "unwraps" the sql.NullString objects by checking their .String property.
+     */
+    getLastMessagePreview(chat) {
+      // Unwrap the last message and type from the sql.NullString objects.
+      const msg = (chat.last_message && chat.last_message.String) || "";
+      const type = (chat.last_message_type && chat.last_message_type.String) || "";
+
+      if (!msg) {
+        return "";
+      }
+      if (type === "text") {
+        return msg.length > 20 ? msg.substring(0, 20) + "..." : msg;
+      } else if (type === "photo") {
+        return "photo";
+      } else if (type === "gif") {
+        return "gif";
+      } else {
+        return "";
+      }
     }
   }
 };
@@ -159,6 +180,23 @@ export default {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.chat-text-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.chat-name {
+  font-weight: bold;
+  font-size: 1rem;
+}
+
+.last-message {
+  font-size: 0.9rem;
+  color: #777;
+  margin: 0;
 }
 
 .last-convo-time {

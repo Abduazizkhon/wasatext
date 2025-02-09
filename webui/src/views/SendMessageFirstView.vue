@@ -67,61 +67,35 @@
 </template>
 
 <script>
-import axios from "axios";
-
+import axios from '../services/axios.js';
 export default {
   data() {
     return {
-      recipientUsername: "", // Model for recipient's username
-      content: "", // Model for message content
-      file: null, // Model for the file (image/gif)
-      messageType: "", // This will hold 'text', 'image', or 'gif'
-      loading: false, // For loading state
-      message: "", // Success or error message
-      messageClass: "", // Class to apply success/error styling
+      recipientUsername: "",
+      content: "",
+      file: null,
+      messageType: "",
+      loading: false,
+      message: "",
+      messageClass: ""
     };
   },
   methods: {
-    handleFileChange(event) {
-      this.file = event.target.files[0]; // Get the selected file
-    },
-
+    handleFileChange(event) { this.file = event.target.files[0]; },
     async submitForm() {
       const token = localStorage.getItem("authToken");
       const userID = localStorage.getItem("userID");
-
-      if (!token || !userID) {
-        this.message = "User not authenticated.";
-        this.messageClass = "error";
-        return;
-      }
-
+      if (!token || !userID) { this.message = "User not authenticated."; this.messageClass = "error"; return; }
       const formData = new FormData();
-      formData.append("recipient_username", this.recipientUsername); // Send recipient's username
-      formData.append("content_type", this.messageType); // Set message type
-      formData.append("content", this.content); // Add text content
-
-      if (this.file) {
-        formData.append("file", this.file); // Attach the file if selected
-      }
-
+      formData.append("recipient_username", this.recipientUsername);
+      formData.append("content_type", this.messageType);
+      formData.append("content", this.content);
+      if (this.file) { formData.append("file", this.file); }
       try {
-        this.loading = true;
-        this.message = "";
-        this.messageClass = "";
-
-        // Send the request to create a new conversation and send the first message
-        const response = await axios.post(
-          `http://localhost:3000/users/${userID}/conversations/first-message`,
-          formData,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "multipart/form-data",
-            },
-          }
-        );
-
+        this.loading = true; this.message = ""; this.messageClass = "";
+        const response = await axios.post(`/users/${userID}/conversations/first-message`, formData, {
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" }
+        });
         this.loading = false;
         this.message = `Message sent successfully! Conversation ID: ${response.data.c_id}`;
         this.messageClass = "success";
@@ -131,8 +105,8 @@ export default {
         this.messageClass = "error";
         console.error("Error sending message:", error);
       }
-    },
-  },
+    }
+  }
 };
 </script>
 

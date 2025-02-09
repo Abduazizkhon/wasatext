@@ -17,6 +17,9 @@ type Conversation struct {
 	IsGroup   bool           `json:"is_group"`
 	Photo     sql.NullString `json:"photo"`
 	Name      string         `json:"name"`
+	// NEW FIELDS:
+	LastMessage     sql.NullString `json:"last_message"`
+	LastMessageType sql.NullString `json:"last_message_type"`
 }
 
 type Convmember struct {
@@ -52,4 +55,12 @@ type MessageWithSender struct {
 	SenderID       string         `json:"sender_id"`
 	SenderUsername string         `json:"sender_username"`
 	SenderPhoto    sql.NullString `json:"sender_photo"` // Use sql.NullString for nullable fields
+}
+
+type MessageComment struct {
+	ID        int       `json:"id"`
+	UserID    string    `json:"user_id"`
+	Username  string    `json:"username"`
+	Content   string    `json:"content"`
+	Timestamp time.Time `json:"timestamp"`
 }

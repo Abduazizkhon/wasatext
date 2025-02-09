@@ -462,7 +462,7 @@ func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps htt
 	// Log the request
 	context.Logger.Info("Request received: method=%s, path=%s", r.Method, r.URL.Path)
 
-	// Step 1: Extract source conversation ID, message ID, and target conversation ID from the path parameters
+	// Step 1: Extract source conversation ID and message ID.
 	sourceConversationIDStr := ps.ByName("conversation_id")
 	sourceConversationID, err := strconv.Atoi(sourceConversationIDStr)
 	if err != nil || sourceConversationID <= 0 {
@@ -470,7 +470,6 @@ func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps htt
 		http.Error(w, "Invalid source conversation ID", http.StatusBadRequest)
 		return
 	}
-
 	messageIDStr := ps.ByName("message_id")
 	messageID, err := strconv.Atoi(messageIDStr)
 	if err != nil || messageID <= 0 {
@@ -479,15 +478,12 @@ func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps htt
 		return
 	}
 
+	// Step 2: Extract target conversation identifier.
+	// It can either be a numeric ID or the literal "new"
 	targetConversationIDStr := ps.ByName("target_conversation_id")
-	targetConversationID, err := strconv.Atoi(targetConversationIDStr)
-	if err != nil || targetConversationID <= 0 {
-		context.Logger.WithError(err).Error("Invalid target conversation ID")
-		http.Error(w, "Invalid target conversation ID", http.StatusBadRequest)
-		return
-	}
+	var targetConversationID int
 
-	// Step 2: Extract the user ID from the request context (authenticated user)
+	// Step 3: Get the forwarding user from context.
 	userID := context.UserID
 	if userID == "" {
 		context.Logger.Error("User not authenticated")
@@ -495,32 +491,157 @@ func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps htt
 		return
 	}
 
-	// Step 3: Validate if the user is part of both the source and target conversations
-	isMemberOfSource, err := rt.db.IsUserInConversation(userID, sourceConversationID)
+	if targetConversationIDStr == "new" {
+		// Forward to a new conversation using a target name (which can be a group or a user).
+		var input struct {
+			TargetUsername string `json:"target_username"` // if not a group, this is a user name
+		}
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			context.Logger.WithError(err).Error("Failed to decode request body for forward message")
+			http.Error(w, "Invalid input", http.StatusBadRequest)
+			return
+		}
+		if input.TargetUsername == "" {
+			context.Logger.Error("No target username provided")
+			http.Error(w, "Target username required", http.StatusBadRequest)
+			return
+		}
+		context.Logger.Info("Forward request target name:", input.TargetUsername)
+		// First try to see if this target name corresponds to a group conversation.
+		groupConv, err := rt.db.GetGroupByName(input.TargetUsername)
+		if err != nil {
+			context.Logger.WithError(err).Error("Error searching for group")
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		if groupConv.ID != 0 {
+			// Found a group conversation. Verify membership.
+			isMember, err := rt.db.IsUserInConversation(userID, groupConv.ID)
+			if err != nil {
+				context.Logger.WithError(err).Error("Error checking membership in target group")
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			if !isMember {
+				context.Logger.Error("User is not part of the target group")
+				http.Error(w, "User is not part of the target group", http.StatusForbidden)
+				return
+			}
+			context.Logger.Info("Forwarding to group with conversation ID:", groupConv.ID)
+			targetConversationID = groupConv.ID
+		} else {
+			// Otherwise, treat it as a target user (one-on-one conversation)
+			context.Logger.Info("No group found. Looking up target user:", input.TargetUsername)
+			targetUser, err := rt.db.GetUser(input.TargetUsername)
+			if err != nil {
+				context.Logger.WithError(err).Error("Target user not found")
+				http.Error(w, "Target user not found", http.StatusNotFound)
+				return
+			}
+			// Check if a one-on-one conversation between userID and targetUser.ID exists.
+			conv, err := rt.db.GetConversationBetweenUsers(userID, targetUser.ID)
+			if err != nil {
+				context.Logger.WithError(err).Error("Error checking conversation between users")
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			if conv.ID == 0 {
+				context.Logger.Info("No existing one-on-one conversation found. Creating new conversation...")
+				conv, err = rt.db.CreateConversation_db(false, "", "")
+				if err != nil {
+					context.Logger.WithError(err).Error("Error creating new conversation")
+					http.Error(w, "Internal server error", http.StatusInternalServerError)
+					return
+				}
+				// Add both users to the conversation.
+				if err := rt.db.AddUsersToConversation(userID, conv.ID); err != nil {
+					context.Logger.WithError(err).Error("Error adding forwarding user to conversation")
+					http.Error(w, "Internal server error", http.StatusInternalServerError)
+					return
+				}
+				if err := rt.db.AddUsersToConversation(targetUser.ID, conv.ID); err != nil {
+					context.Logger.WithError(err).Error("Error adding target user to conversation")
+					http.Error(w, "Internal server error", http.StatusInternalServerError)
+					return
+				}
+			}
+			targetConversationID = conv.ID
+		}
+	} else {
+		// Otherwise, parse the target conversation ID as a number.
+		targetConversationID, err = strconv.Atoi(targetConversationIDStr)
+		if err != nil || targetConversationID <= 0 {
+			context.Logger.WithError(err).Error("Invalid target conversation ID")
+			http.Error(w, "Invalid target conversation ID", http.StatusBadRequest)
+			return
+		}
+		// If the target conversation is numeric, check if it is a group.
+		isGroup, err := rt.db.IsConversationGroup(targetConversationID)
+		if err != nil {
+			context.Logger.WithError(err).Error("Error checking target conversation type")
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		if isGroup {
+			groupName, err := rt.db.GetGroupNameById(targetConversationID)
+			if err != nil {
+				context.Logger.WithError(err).Error("Error retrieving group name")
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			context.Logger.Info("Forwarding to group:", groupName)
+		}
+	}
+
+	// Step 4: Validate membership.
+	// Check that the user is part of the source conversation.
+	isMemberSource, err := rt.db.IsUserInConversation(userID, sourceConversationID)
 	if err != nil {
-		context.Logger.WithError(err).Error("Error checking if user is in source conversation")
+		context.Logger.WithError(err).Error("Error checking membership in source conversation")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	if !isMemberOfSource {
+	if !isMemberSource {
 		context.Logger.Error("User is not part of the source conversation")
 		http.Error(w, "User is not part of the source conversation", http.StatusForbidden)
 		return
 	}
-
-	isMemberOfTarget, err := rt.db.IsUserInConversation(userID, targetConversationID)
+	// For target conversation:
+	// If it is a group, check that the user is a member.
+	isGroup, err := rt.db.IsConversationGroup(targetConversationID)
 	if err != nil {
-		context.Logger.WithError(err).Error("Error checking if user is in target conversation")
+		context.Logger.WithError(err).Error("Error checking conversation type")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	if !isMemberOfTarget {
-		context.Logger.Error("User is not part of the target conversation")
-		http.Error(w, "User is not part of the target conversation", http.StatusForbidden)
-		return
+	if isGroup {
+		isMemberTarget, err := rt.db.IsUserInConversation(userID, targetConversationID)
+		if err != nil {
+			context.Logger.WithError(err).Error("Error checking membership in target group conversation")
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		if !isMemberTarget {
+			context.Logger.Error("User is not part of the target group conversation")
+			http.Error(w, "User is not part of the target group conversation", http.StatusForbidden)
+			return
+		}
+	} else {
+		// For one-on-one conversations, ensure that the forwarding user is a member.
+		isMemberTarget, err := rt.db.IsUserInConversation(userID, targetConversationID)
+		if err != nil {
+			context.Logger.WithError(err).Error("Error checking membership in target conversation")
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		if !isMemberTarget {
+			context.Logger.Error("User is not part of the target conversation")
+			http.Error(w, "User is not part of the target conversation", http.StatusForbidden)
+			return
+		}
 	}
 
-	// Step 4: Fetch the message content from the source conversation
+	// Step 5: Retrieve the message content from the source conversation.
 	messageContent, err := rt.db.GetMessageContent(messageID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -533,7 +654,8 @@ func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps htt
 		return
 	}
 
-	// Step 5: Forward the message to the target conversation with the user as the sender
+	// Step 6: Forward the message.
+	// The new message will be created with sender = userID (i.e. the forwarding user).
 	err = rt.db.ForwardMessage(targetConversationID, userID, messageContent)
 	if err != nil {
 		context.Logger.WithError(err).Error("Error forwarding message")
@@ -541,7 +663,7 @@ func (rt *_router) forwardMessage(w http.ResponseWriter, r *http.Request, ps htt
 		return
 	}
 
-	// Step 6: Respond with success
+	// Step 7: Respond with success.
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"message": "Message forwarded successfully",
@@ -1144,4 +1266,27 @@ func (rt *_router) uncommentMessage(w http.ResponseWriter, r *http.Request, ps h
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"message": "Comment deleted successfully",
 	})
+}
+
+func (rt *_router) getComments(w http.ResponseWriter, r *http.Request, ps httprouter.Params, context *reqcontext.RequestContext) {
+	messageIDStr := ps.ByName("message_id")
+	messageID, err := strconv.Atoi(messageIDStr)
+	if err != nil || messageID <= 0 {
+		http.Error(w, "Invalid message id", http.StatusBadRequest)
+		return
+	}
+
+	comments, err := rt.db.GetCommentsByMessageID(messageID)
+	if err != nil {
+		context.Logger.WithError(err).Error("Error retrieving comments")
+		// Optionally, write out the error in plain text to help debugging (remove in production)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(comments); err != nil {
+		context.Logger.WithError(err).Error("Error encoding comments response")
+		http.Error(w, "Error encoding response", http.StatusInternalServerError)
+		return
+	}
 }

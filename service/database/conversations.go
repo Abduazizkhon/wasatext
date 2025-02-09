@@ -148,7 +148,12 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error
 	query := `
         SELECT 
             c.id, 
-            c.lastconvo, 
+            COALESCE(
+                (SELECT MAX(m.datetime) 
+                 FROM messages m 
+                 WHERE m.conversation_id = c.id),
+                c.lastconvo
+            ) AS lastconvo,
             c.is_group, 
             c.photo,
             CASE 
@@ -162,7 +167,9 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error
                                               JOIN convmembers cm ON u.id = cm.user_id 
                                               WHERE cm.conversation_id = c.id AND u.id != ? LIMIT 1)
                 ELSE NULL
-            END AS user_photo
+            END AS user_photo,
+            (SELECT m.content FROM messages m WHERE m.conversation_id = c.id ORDER BY m.datetime DESC LIMIT 1) AS last_message,
+            (SELECT m.content_type FROM messages m WHERE m.conversation_id = c.id ORDER BY m.datetime DESC LIMIT 1) AS last_message_type
         FROM 
             conversations c
         JOIN 
@@ -171,6 +178,7 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error
             cm.user_id = ?;
     `
 
+	// Pass userID three times: first two for the subqueries and the third for the WHERE clause.
 	rows, err := db.c.Query(query, userID, userID, userID)
 	if err != nil {
 		return nil, err
@@ -180,29 +188,42 @@ func (db *appdbimpl) GetMyConversations_db(userID string) ([]Conversation, error
 	var conversations []Conversation
 	for rows.Next() {
 		var convo Conversation
+		var lastConvoStr string // temporary variable for the timestamp as string
 		var userPhoto sql.NullString
-		err := rows.Scan(&convo.ID, &convo.LastConvo, &convo.IsGroup, &convo.Photo, &convo.Name, &userPhoto)
+		var lastMessage sql.NullString
+		var lastMessageType sql.NullString
+
+		err := rows.Scan(&convo.ID, &lastConvoStr, &convo.IsGroup, &convo.Photo, &convo.Name, &userPhoto, &lastMessage, &lastMessageType)
 		if err != nil {
 			return nil, err
 		}
 
+		// Parse the last conversation timestamp string into a time.Time.
+		// Adjust the layout if your database returns a different format.
+		parsedTime, err := time.Parse("2006-01-02 15:04:05", lastConvoStr)
+		if err != nil {
+			return nil, err
+		}
+		convo.LastConvo = parsedTime
+
 		// Correct the photo URL by avoiding double '/uploads/'
 		if userPhoto.Valid && userPhoto.String != "" {
-			// Only prepend '/uploads/' if it's not already there
 			if !strings.HasPrefix(userPhoto.String, "/uploads/") {
 				convo.Photo.String = "/uploads/" + userPhoto.String
 			} else {
 				convo.Photo.String = userPhoto.String
 			}
 		} else if convo.Photo.Valid && convo.Photo.String != "" {
-			// Handle the conversation's own photo URL
 			if !strings.HasPrefix(convo.Photo.String, "/uploads/") {
 				convo.Photo.String = "/uploads/" + convo.Photo.String
 			}
 		} else {
-			// If no valid photo, use the default profile picture
 			convo.Photo.String = "/default-profile.png"
 		}
+
+		// Set the new last message fields.
+		convo.LastMessage = lastMessage
+		convo.LastMessageType = lastMessageType
 
 		conversations = append(conversations, convo)
 	}
@@ -562,4 +583,91 @@ func (db *appdbimpl) SaveUploadedFile(file io.Reader, header *multipart.FileHead
 
 	// Return content type and file path
 	return contentType, "/uploads/" + fileName, nil
+}
+
+func (db *appdbimpl) GetCommentsByMessageID(messageID int) ([]MessageComment, error) {
+	query := `
+        SELECT 
+            mc.id, 
+            u.id AS user_id,
+            u.name, 
+            mc.content, 
+            mc.timestamp
+        FROM 
+            message_comments mc
+        JOIN 
+            users u ON mc.user_id = u.id
+        WHERE 
+            mc.message_id = ?;
+    `
+	rows, err := db.c.Query(query, messageID)
+	if err != nil {
+		// Print the error for debugging purposes
+		return nil, err
+	}
+	defer rows.Close()
+
+	var comments []MessageComment
+	for rows.Next() {
+		var comment MessageComment
+		if err := rows.Scan(&comment.ID, &comment.UserID, &comment.Username, &comment.Content, &comment.Timestamp); err != nil {
+			return nil, err
+		}
+		comments = append(comments, comment)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return comments, nil
+}
+
+func (db *appdbimpl) GetConversationBetweenUsers(user1 string, user2 string) (Conversation, error) {
+	query := `
+        SELECT c.id, c.lastconvo, c.is_group, c.photo, c.name
+        FROM conversations c
+        JOIN convmembers cm1 ON c.id = cm1.conversation_id
+        JOIN convmembers cm2 ON c.id = cm2.conversation_id
+        WHERE cm1.user_id = ? AND cm2.user_id = ? AND c.is_group = FALSE
+        LIMIT 1;
+    `
+	var conv Conversation
+	// Directly scan lastconvo into conv.LastConvo (of type time.Time)
+	err := db.c.QueryRow(query, user1, user2).Scan(&conv.ID, &conv.LastConvo, &conv.IsGroup, &conv.Photo, &conv.Name)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Conversation{}, nil
+		}
+		return Conversation{}, err
+	}
+	return conv, nil
+}
+
+func (db *appdbimpl) GetGroupByName(groupName string) (Conversation, error) {
+	query := `
+        SELECT id, lastconvo, is_group, photo, name
+        FROM conversations
+        WHERE is_group = TRUE AND name = ?
+        LIMIT 1;
+    `
+	var conv Conversation
+	err := db.c.QueryRow(query, groupName).Scan(&conv.ID, &conv.LastConvo, &conv.IsGroup, &conv.Photo, &conv.Name)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Conversation{}, nil
+		}
+		return Conversation{}, err
+	}
+	return conv, nil
+}
+
+// GetGroupNameById returns the name of the group conversation given its id.
+// It assumes the conversation exists and is a group.
+func (db *appdbimpl) GetGroupNameById(conversationID int) (string, error) {
+	var name string
+	query := `SELECT name FROM conversations WHERE id = ? AND is_group = TRUE;`
+	err := db.c.QueryRow(query, conversationID).Scan(&name)
+	if err != nil {
+		return "", err
+	}
+	return name, nil
 }
