@@ -1290,3 +1290,48 @@ func (rt *_router) getComments(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 }
+
+func (rt *_router) searchUser(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx *reqcontext.RequestContext) {
+    // Get the query parameter "username"
+    username := r.URL.Query().Get("username")
+    if username == "" {
+        http.Error(w, "Missing username query parameter", http.StatusBadRequest)
+        return
+    }
+
+    // Look up the user in the database by username.
+    user, err := rt.db.GetUser(username)
+    if err != nil {
+        if err == sql.ErrNoRows {
+            http.Error(w, "No such user found", http.StatusNotFound)
+            return
+        }
+        ctx.Logger.WithError(err).Error("Error searching for user")
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
+        return
+    }
+
+    // Check if a one-on-one conversation already exists between the current user and the searched user.
+    convo, err := rt.db.GetConversationBetweenUsers(ctx.UserID, user.ID)
+    if err != nil {
+        ctx.Logger.WithError(err).Error("Error checking conversation")
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
+        return
+    }
+
+    // Prepare the response payload.
+    response := map[string]interface{}{
+        "user": user,
+    }
+    if convo.ID != 0 {
+        response["conversation_id"] = convo.ID
+    } else {
+        response["conversation_id"] = nil
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    if err := json.NewEncoder(w).Encode(response); err != nil {
+        ctx.Logger.WithError(err).Error("Error encoding search response")
+        http.Error(w, "Internal server error", http.StatusInternalServerError)
+    }
+}

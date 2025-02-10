@@ -39,6 +39,9 @@
           <button class="new-group-btn">Create a New Group</button>
         </RouterLink>
       </div>
+      <RouterLink to="/search/users" class="search-people-button">
+        <button>Search People</button>
+      </RouterLink>
     </div>
   </div>
 </template>

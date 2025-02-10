@@ -7,6 +7,7 @@ import ConversationsView from "../views/ConversationsView.vue";
 import SendMessageFirstView from "../views/SendMessageFirstView.vue"; // Import the new view
 import CreateGroupView from "../views/CreateGroupView.vue"; // Import the new CreateGroupView
 import GetMessagesView from '../views/GetMessagesView.vue';
+import SearchUserView from "../views/SearchUserView.vue";
 
 const router = createRouter({
   history: createWebHashHistory(import.meta.env.BASE_URL),
@@ -58,7 +59,16 @@ const router = createRouter({
 		path: '/chat/:c_id',  // :c_id is the dynamic parameter for conversation ID
 		name: 'GetMessages',
 		component: GetMessagesView,
-	}
+	},
+  {
+    path: '/search/users',
+    component: SearchUserView,
+    beforeEnter: (to, from, next) => {
+      const token = localStorage.getItem("authToken");
+      if (!token) next("/login");
+      else next();
+    }
+  }
 
   ]
 });

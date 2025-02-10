@@ -29,6 +29,7 @@ func (rt *_router) Handler() http.Handler {
 	rt.router.DELETE("/conversations/:conversation_id/messages/:message_id/comments/:comment_id", rt.wrap(rt.uncommentMessage))
 	rt.router.GET("/users/:id", rt.wrap(rt.getUser)) // ✅ Add this route
 	rt.router.GET("/messages/:message_id/comments", rt.wrap(rt.getComments))
+	rt.router.GET("/search/users", rt.wrap(rt.searchUser))
 
 	// rt.router.POST("/conversations/:c_id/messages", rt.wrap(rt.sendMessage))// Send message to an existing conversation
 	// rt.router.GET("/users/:id/conversations/:c_id", rt.getConversation)
