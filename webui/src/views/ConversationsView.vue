@@ -40,7 +40,7 @@
         </RouterLink>
       </div>
       <RouterLink to="/search/users" class="search-people-button">
-        <button>Search People</button>
+        <button class="new-group-btn">Search People</button>
       </RouterLink>
     </div>
   </div>
