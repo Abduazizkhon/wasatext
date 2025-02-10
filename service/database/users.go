@@ -129,7 +129,6 @@ func (db *appdbimpl) UpdateUserName(id string, newname string) (err error) {
 
 	// Check if the username already exists
 	var count int
-	// After
 	checkQuery := `SELECT COUNT(*) FROM users WHERE name = ? AND id <> ?;`
 	err = tx.QueryRow(checkQuery, newname, id).Scan(&count)
 	if err != nil {
@@ -146,10 +145,15 @@ func (db *appdbimpl) UpdateUserName(id string, newname string) (err error) {
 		return fmt.Errorf("failed to update username in users table: %w", err)
 	}
 
-	// ✅ Update all conversation names linked to this user
-	updateConversationQuery := `UPDATE conversations SET name = ? WHERE id IN (
-        SELECT conversation_id FROM convmembers WHERE user_id = ?
-    );`
+	// Update conversation names only for one-on-one conversations (is_group = FALSE)
+	updateConversationQuery := `
+		UPDATE conversations 
+		SET name = ? 
+		WHERE is_group = FALSE 
+		AND id IN (
+			SELECT conversation_id FROM convmembers WHERE user_id = ?
+		);
+	`
 	_, err = tx.Exec(updateConversationQuery, newname, id)
 	if err != nil {
 		return fmt.Errorf("failed to update conversation names: %w", err)
