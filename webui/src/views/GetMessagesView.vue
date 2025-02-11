@@ -185,14 +185,9 @@
                   <p class="comment-text">{{ c.content }}</p>
                 </div>
 
-                <!-- Add New Comment Form -->
+                <!-- Add New Comment Form (now only a ❤️ react button) -->
                 <div class="add-comment-form">
-                  <input
-                    type="text"
-                    v-model="message.newComment"
-                    placeholder="Type your comment..."
-                  />
-                  <button @click="addComment(message)">Add Comment</button>
+                  <button @click="addEmojiComment(message)">❤️ React</button>
                 </div>
               </div>
             </div>
@@ -289,6 +284,7 @@ export default {
         this.messages = fetchedMessages.map((msg) => ({
           ...msg,
           comments: [],
+          // We no longer track "newComment" here because we only post emojis
           newComment: '',
           showComments: false,
           showForwardPanel: false,
@@ -457,12 +453,8 @@ export default {
       }
     },
 
-    // Post a new comment
-    async addComment(message) {
-      if (!message.newComment.trim()) {
-        alert("Please type a comment first.");
-        return;
-      }
+    // Only allow a single heart emoji
+    async addEmojiComment(message) {
       const token = localStorage.getItem("authToken");
       const conversationID = this.$route.params.c_id;
       if (!token || !conversationID) {
@@ -470,20 +462,22 @@ export default {
         return;
       }
       try {
+        // Force a single heart emoji with content_type = "emoji"
         await axios.post(
           `/conversations/${conversationID}/messages/${message.id}/comments`,
-          { content_type: "text", content: message.newComment.trim() },
+          {
+            content_type: "emoji",
+            content: "❤️"
+          },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        // Reload comments
+        // Reload comments to show the new heart reaction
         const response = await axios.get(`/messages/${message.id}/comments`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         message.comments = response.data;
-        message.newComment = '';
-        alert("Comment added successfully!");
       } catch (error) {
-        console.error("Error adding comment:", error);
+        console.error("Error adding emoji comment:", error);
         alert("Error adding comment. Check console for details.");
       }
     },
@@ -543,17 +537,10 @@ export default {
           this.isInteracting = false;
         }
 
-        /**
-         * NOTE:
-         * The new conversation must also recognize the forwarded message
-         * as "forwarded". Typically, your server would set `status = "forwarded"`
-         * on the newly inserted message. Then, when you fetch that conversation,
-         * you see `status: 'forwarded'` automatically.
-         * 
-         * If your server does not do that, you can add logic
-         * in that conversation's fetch routine to force the "forwarded" status
-         * for any message known to be forwarded.
-         */
+        // NOTE: If you want the forwarded message to appear
+        // with "Forwarded" in the *new* conversation,
+        // the server must set `status='forwarded'` in the new row,
+        // so that conversation sees "status":"forwarded".
       } catch (error) {
         console.error("Error forwarding message:", error);
         alert("Error forwarding message. Check console for details.");
@@ -893,14 +880,8 @@ export default {
   margin-top: 6px;
   gap: 6px;
 }
-.add-comment-form input[type="text"] {
-  flex: 1;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  padding: 6px;
-}
 .add-comment-form button {
-  background-color: #4caf50;
+  background-color: #e91e63;
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -908,7 +889,7 @@ export default {
   cursor: pointer;
 }
 .add-comment-form button:hover {
-  background-color: #388e3c;
+  background-color: #d81b60;
 }
 
 /* Layout: page, messages container, and input bar */
