@@ -168,7 +168,7 @@
               <!-- Comments Section -->
               <div v-if="message.showComments" class="comments-section">
                 <!-- Display each comment -->
-                <div v-for="(c, idx) in message.comments" :key="c.id" class="single-comment">
+                <div v-for="c in message.comments" :key="c.id" class="single-comment">
                   <p class="comment-header">
                     <strong>{{ c.username }}</strong>
                     <span class="comment-time">{{ formatDate(c.timestamp) }}</span>
