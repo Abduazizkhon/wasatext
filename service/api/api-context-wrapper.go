@@ -88,12 +88,12 @@ func (rt *_router) wrap(fn httpRouterHandler) func(http.ResponseWriter, *http.Re
 func (rt *_router) extractUserIDFromHeader(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		return "", errors.New("Unauthorized: Missing Authorization header")
+		return "", errors.New("unauthorized: missing authorization header")
 	}
 
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
-		return "", errors.New("Unauthorized: Invalid Authorization format")
+		return "", errors.New("unauthorized: invalid authorization format")
 	}
 
 	return parts[1], nil // ✅ Return token as user ID
