@@ -268,8 +268,8 @@ func (db *appdbimpl) SendMessageFull(conversationID int, senderID string, conten
 }
 
 func (db *appdbimpl) GetMessagesByConversationId(conversationID int) ([]MessageWithSender, error) {
-    // Include m.status in the SELECT list.
-    query := `
+	// Include m.status in the SELECT list.
+	query := `
         SELECT 
             m.id,
             m.datetime,
@@ -288,36 +288,36 @@ func (db *appdbimpl) GetMessagesByConversationId(conversationID int) ([]MessageW
             m.datetime ASC;
     `
 
-    rows, err := db.c.Query(query, conversationID)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	rows, err := db.c.Query(query, conversationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    var messages []MessageWithSender
-    for rows.Next() {
-        var msg MessageWithSender
-        // Be sure MessageWithSender includes a `Status string` field
-        err := rows.Scan(
-            &msg.ID,
-            &msg.Datetime,
-            &msg.Content,
-            &msg.Status,           // <-- SCAN THIS
-            &msg.SenderID,
-            &msg.SenderUsername,
-            &msg.SenderPhoto,
-        )
-        if err != nil {
-            return nil, err
-        }
-        messages = append(messages, msg)
-    }
+	var messages []MessageWithSender
+	for rows.Next() {
+		var msg MessageWithSender
+		// Be sure MessageWithSender includes a `Status string` field
+		err := rows.Scan(
+			&msg.ID,
+			&msg.Datetime,
+			&msg.Content,
+			&msg.Status, // <-- SCAN THIS
+			&msg.SenderID,
+			&msg.SenderUsername,
+			&msg.SenderPhoto,
+		)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, msg)
+	}
 
-    if err := rows.Err(); err != nil {
-        return nil, err
-    }
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 
-    return messages, nil
+	return messages, nil
 }
 
 func (db *appdbimpl) IsMessageOwner(userID string, messageID int) (bool, error) {
