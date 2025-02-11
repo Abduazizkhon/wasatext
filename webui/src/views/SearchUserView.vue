@@ -110,7 +110,7 @@ export default {
         if (response.data && response.data.c_id) {
           this.$router.push(`/chat/${response.data.c_id}`);
         }
-      } catch (err) {
+      } catch {
         this.errorMessage = "Error starting conversation.";
       }
     }
