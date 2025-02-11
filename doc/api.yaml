@@ -408,25 +408,6 @@ paths:
           type: integer
         description: The unique identifier of the conversation.
 
-    get:
-      tags:
-        - Messages
-      summary: Get messages in a conversation
-      description: Retrieves all messages within a specific conversation for the authenticated user.
-      operationId: getMessagesInConversation
-      responses:
-        '200':
-          description: List of messages retrieved successfully.
-          content:
-            application/json:
-              schema:
-                type: array
-                description: An array containing message objects in the specified conversation.
-                items:
-                  $ref: '#/components/schemas/Message'
-                minItems: 1
-                maxItems: 100
-
     post:
       tags:
         - Messages
@@ -732,7 +713,7 @@ paths:
         schema:
           type: integer
         description: The unique identifier of the conversation.
-    post:
+    delete:
       tags:
         - Groups
       summary: Leave a group
