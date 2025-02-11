@@ -1302,7 +1302,7 @@ func (rt *_router) searchUser(w http.ResponseWriter, r *http.Request, ps httprou
 	// Look up the user in the database by username.
 	user, err := rt.db.GetUser(username)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			http.Error(w, "No such user found", http.StatusNotFound)
 			return
 		}

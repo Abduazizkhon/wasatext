@@ -122,7 +122,7 @@ func (db *appdbimpl) UpdateUserName(id string, newname string) (err error) {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
 	defer func() {
-		if newerr := tx.Rollback(); newerr != nil && newerr != sql.ErrTxDone {
+		if newerr := tx.Rollback(); newerr != nil && !errors.Is(newerr, sql.ErrTxDone) {
 			err = fmt.Errorf("failed to rollback transaction: %w", newerr)
 		}
 	}()
