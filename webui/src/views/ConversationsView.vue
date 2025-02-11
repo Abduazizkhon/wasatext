@@ -2,21 +2,21 @@
   <div class="chats-container">
     <h1>My Conversations</h1>
 
-    <div v-if="loading">Loading chats...</div>
-
-    <div v-else-if="conversations.length === 0">
+    <!-- If there are no conversations at all -->
+    <div v-if="conversations.length === 0">
       <p>No conversations yet.</p>
     </div>
 
+    <!-- Otherwise show the conversation list -->
     <ul v-else>
       <li v-for="chat in conversations" :key="chat.id" class="chat-item">
         <RouterLink :to="`/chat/${chat.id}`" class="chat-link">
           <div class="chat-info">
-            <img 
-              v-if="chat.photo" 
-              :src="chat.photo" 
-              alt="Chat Photo" 
-              class="chat-photo" 
+            <img
+              v-if="chat.photo"
+              :src="chat.photo"
+              alt="Chat Photo"
+              class="chat-photo"
               @error="setDefaultPhoto($event)"
             />
             <div class="chat-text-info">
@@ -55,32 +55,51 @@ export default {
     return {
       conversations: [],
       loading: true,
+      updateInterval: null, // To store the setInterval reference
     };
   },
-  async created() {
-    const token = localStorage.getItem("authToken");
-    const userID = localStorage.getItem("userID");
-
-    if (!token || !userID) {
-      console.warn("🚨 User not authenticated.");
-      return;
+  created() {
+    // Fetch right away on creation
+    this.fetchConversations();
+  },
+  mounted() {
+    // Poll the server every 1 second to mimic real-time updates
+    this.updateInterval = setInterval(() => {
+      this.fetchConversations();
+    }, 1000);
+  },
+  beforeUnmount() {
+    // Clean up the interval to avoid memory leaks
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
     }
+  },
+  methods: {
+    async fetchConversations() {
+      const token = localStorage.getItem("authToken");
+      const userID = localStorage.getItem("userID");
 
-    try {
-      console.log("🔍 Fetching user conversations...");
-      const response = await axios.get(`/users/${userID}/conversations`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      if (!token || !userID) {
+        console.warn("🚨 User not authenticated.");
+        this.loading = false;
+        return;
+      }
 
-      console.log("📝 Full API Response:", response.data);
+      this.loading = true; // show loading spinner or text if needed
+      try {
+        console.log("🔍 Fetching user conversations...");
+        const response = await axios.get(`/users/${userID}/conversations`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      // Process each chat object from the API and map it to our local conversation object.
-      this.conversations = await Promise.all(
-        response.data.map(async (chat) => {
+        console.log("📝 Full API Response:", response.data);
+
+        // Process each chat object from the API
+        const baseURL = axios.defaults.baseURL;
+        const mappedConversations = response.data.map((chat) => {
           let photoURL = "/default-profile.png"; // Default image
-          const baseURL = axios.defaults.baseURL; // Use the baseURL from axios instance
 
-          // If a valid photo is provided (i.e. not the default), build its URL using the baseURL.
+          // If a valid photo is provided (not the default), build its URL using baseURL
           if (chat.photo && chat.photo.String && chat.photo.String !== "/default-profile.png") {
             photoURL = chat.photo.String.startsWith(baseURL)
               ? chat.photo.String
@@ -96,17 +115,25 @@ export default {
             last_message: chat.last_message,
             last_message_type: chat.last_message_type,
           };
-        })
-      );
+        });
 
-      console.log("✅ Processed Conversations Data:", this.conversations);
-    } catch (error) {
-      console.error("❌ Error fetching conversations:", error);
-    } finally {
-      this.loading = false;
-    }
-  },
-  methods: {
+        // Sort conversations by last_convo descending (latest first)
+        mappedConversations.sort((a, b) => {
+          // Convert to Date objects and subtract
+          const dateA = new Date(a.last_convo);
+          const dateB = new Date(b.last_convo);
+          return dateB - dateA; // descending
+        });
+
+        // Assign sorted array to local state
+        this.conversations = mappedConversations;
+        console.log("✅ Processed & Sorted Conversations Data:", this.conversations);
+      } catch (error) {
+        console.error("❌ Error fetching conversations:", error);
+      } finally {
+        this.loading = false;
+      }
+    },
     setDefaultPhoto(event) {
       event.target.src = "/default-profile.png";
     },
@@ -139,8 +166,8 @@ export default {
       } else {
         return "";
       }
-    }
-  }
+    },
+  },
 };
 </script>
 

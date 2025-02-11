@@ -268,13 +268,15 @@ func (db *appdbimpl) SendMessageFull(conversationID int, senderID string, conten
 }
 
 func (db *appdbimpl) GetMessagesByConversationId(conversationID int) ([]MessageWithSender, error) {
-	query := `
+    // Include m.status in the SELECT list.
+    query := `
         SELECT 
-            m.id, 
-            m.datetime, 
-            m.content, 
-            u.id AS sender_id, 
-            u.name AS sender_username, 
+            m.id,
+            m.datetime,
+            m.content,
+            m.status,                -- <-- ADDED
+            u.id AS sender_id,
+            u.name AS sender_username,
             u.photo AS sender_photo
         FROM 
             messages m
@@ -285,34 +287,37 @@ func (db *appdbimpl) GetMessagesByConversationId(conversationID int) ([]MessageW
         ORDER BY 
             m.datetime ASC;
     `
-	rows, err := db.c.Query(query, conversationID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 
-	var messages []MessageWithSender
-	for rows.Next() {
-		var msg MessageWithSender
-		err := rows.Scan(
-			&msg.ID,
-			&msg.Datetime,
-			&msg.Content,
-			&msg.SenderID,
-			&msg.SenderUsername,
-			&msg.SenderPhoto, // Now using sql.NullString
-		)
-		if err != nil {
-			return nil, err
-		}
-		messages = append(messages, msg)
-	}
+    rows, err := db.c.Query(query, conversationID)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
 
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
+    var messages []MessageWithSender
+    for rows.Next() {
+        var msg MessageWithSender
+        // Be sure MessageWithSender includes a `Status string` field
+        err := rows.Scan(
+            &msg.ID,
+            &msg.Datetime,
+            &msg.Content,
+            &msg.Status,           // <-- SCAN THIS
+            &msg.SenderID,
+            &msg.SenderUsername,
+            &msg.SenderPhoto,
+        )
+        if err != nil {
+            return nil, err
+        }
+        messages = append(messages, msg)
+    }
 
-	return messages, nil
+    if err := rows.Err(); err != nil {
+        return nil, err
+    }
+
+    return messages, nil
 }
 
 func (db *appdbimpl) IsMessageOwner(userID string, messageID int) (bool, error) {

@@ -52,6 +52,7 @@ type MessageWithSender struct {
 	ID             int            `json:"id"`
 	Datetime       time.Time      `json:"datetime"`
 	Content        string         `json:"content"`
+	Status         string         `json:"status"`
 	SenderID       string         `json:"sender_id"`
 	SenderUsername string         `json:"sender_username"`
 	SenderPhoto    sql.NullString `json:"sender_photo"` // Use sql.NullString for nullable fields
