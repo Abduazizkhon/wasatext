@@ -226,7 +226,7 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 	}
 	context.Logger.Infof("Extracted conversation_id: %d", conversationID)
 
-	// Extract sender ID (authenticated user)
+	// Extract sender ID (the authenticated user)
 	senderID := context.UserID
 	if senderID == "" {
 		context.Logger.Error("Sender ID is required")
@@ -248,15 +248,36 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	var content, contentType string
-	file, header, fileErr := r.FormFile("file") // Check for file upload
+	// ----------------------------------------------------------------
+	// OPTIONALLY parse "reply_to" from form data (if user is replying)
+	// ----------------------------------------------------------------
+	replyToStr := r.FormValue("reply_to")
+	var replyTo *int
+	if replyToStr != "" {
+		val, convErr := strconv.Atoi(replyToStr)
+		if convErr == nil {
+			replyTo = &val
+		} else {
+			// If invalid, we can just log a warning or ignore
+			context.Logger.WithError(convErr).Warnf("Ignoring invalid reply_to=%q", replyToStr)
+		}
+	}
 
-	if fileErr == nil { // If a file is uploaded
+	// Check if a file is uploaded (photo, GIF, etc.) or if it's just text
+	var content, contentType string
+	file, header, fileErr := r.FormFile("file")
+
+	if fileErr == nil { // A file is uploaded
 		defer file.Close()
 
-		// Validate file type
+		// Validate file extension
 		fileExt := strings.ToLower(filepath.Ext(header.Filename))
-		allowedExts := map[string]string{".jpg": "photo", ".jpeg": "photo", ".png": "photo", ".gif": "gif"}
+		allowedExts := map[string]string{
+			".jpg":  "photo",
+			".jpeg": "photo",
+			".png":  "photo",
+			".gif":  "gif",
+		}
 
 		fileType, valid := allowedExts[fileExt]
 		if !valid {
@@ -265,7 +286,7 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 			return
 		}
 
-		// Save the uploaded file
+		// Ensure the upload directory exists
 		uploadDir := "webui/public/uploads"
 		if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
 			context.Logger.WithError(err).Error("Failed to create upload directory")
@@ -273,7 +294,7 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 			return
 		}
 
-		// Generate unique filename
+		// Generate a unique filename
 		fileName := senderID + "_" + strconv.Itoa(int(time.Now().Unix())) + fileExt
 		filePath := filepath.Join(uploadDir, fileName)
 
@@ -284,6 +305,7 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 			return
 		}
 		defer out.Close()
+
 		_, err = io.Copy(out, file)
 		if err != nil {
 			context.Logger.WithError(err).Error("Failed to write file")
@@ -291,11 +313,12 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 			return
 		}
 
-		// Set message content as file path and contentType
+		// Set message content as the uploaded file path
 		content = "/uploads/" + fileName
 		contentType = fileType
+
 	} else {
-		// Handle text message
+		// Handle text message (no file)
 		content = r.FormValue("content")
 		contentType = r.FormValue("content_type")
 
@@ -306,7 +329,7 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 		}
 	}
 
-	// Fetch the username and photo from the database using the senderID
+	// Fetch the username and photo for the response
 	user, err := rt.db.GetUserByID(senderID)
 	if err != nil {
 		context.Logger.WithError(err).Error("Failed to fetch user")
@@ -314,22 +337,24 @@ func (rt *_router) sendMessage(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 
-	// Save message to database
-	err = rt.db.SendMessageWithType(conversationID, senderID, content, contentType)
+	// ---------------------------------------------------------------------
+	// Save message to database, passing the optional replyTo reference
+	// ---------------------------------------------------------------------
+	err = rt.db.SendMessageWithType(conversationID, senderID, content, contentType, replyTo)
 	if err != nil {
 		context.Logger.WithError(err).Error("Error saving message")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	// Send the response with the username, photo, and message content
+	// Return JSON response with some data about the message
 	w.WriteHeader(http.StatusCreated)
 	err = json.NewEncoder(w).Encode(map[string]interface{}{
 		"message":         "Message sent successfully",
 		"content_type":    contentType,
 		"content":         content,
-		"sender_username": user.Username,     // Now using the actual username from GetUserByID
-		"sender_photo":    user.Photo.String, // Return the photo (URL or empty if no photo)
+		"sender_username": user.Username,
+		"sender_photo":    user.Photo.String, // could be empty if no photo
 	})
 	if err != nil {
 		context.Logger.WithError(err).Error("Error encoding response")

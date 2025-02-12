@@ -78,7 +78,7 @@ type AppDatabase interface {
 	ConvertCommentsToMessages(messageID int, conversationID int) error
 	IsCommentOwner(userID string, commentID int) (bool, error)
 	DeleteComment(commentID int) error
-	SendMessageWithType(conversationID int, senderID string, contentType string, content string) error
+	SendMessageWithType(conversationID int, senderID string, content string, contentType string, replyTo *int) error
 	SendMessageWithMedia(conversationID int, senderID string, contentType string, content string) error
 	SaveUploadedFile(file io.Reader, header *multipart.FileHeader, userID string) (string, string, error)
 	GetCommentsByMessageID(messageID int) ([]MessageComment, error)
@@ -156,8 +156,10 @@ func createDatabase(db *sql.DB) error {
 			sender INTEGER NOT NULL,
 			conversation_id INTEGER NOT NULL,
 			status VARCHAR(10) DEFAULT 'sent',
+			reply_to INTEGER DEFAULT NULL,
 			FOREIGN KEY(sender) REFERENCES users(id),
 			FOREIGN KEY(conversation_id) REFERENCES conversations(id)
+			FOREIGN KEY(reply_to) REFERENCES messages(id)
 		);`,
 		`CREATE TABLE IF NOT EXISTS message_comments (
 			id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

@@ -267,25 +267,30 @@ func (db *appdbimpl) SendMessageFull(conversationID int, senderID string, conten
 	return err
 }
 
+// GetMessagesByConversationId: now does a LEFT JOIN on the "parent" message
 func (db *appdbimpl) GetMessagesByConversationId(conversationID int) ([]MessageWithSender, error) {
-	// Include m.status in the SELECT list.
 	query := `
-        SELECT 
-            m.id,
-            m.datetime,
-            m.content,
-            m.status,                -- <-- ADDED
-            u.id AS sender_id,
-            u.name AS sender_username,
-            u.photo AS sender_photo
-        FROM 
-            messages m
-        JOIN 
-            users u ON m.sender = u.id
-        WHERE 
-            m.conversation_id = ?
-        ORDER BY 
-            m.datetime ASC;
+	SELECT 
+	  m.id,
+	  m.datetime,
+	  m.content,
+	  m.status,
+	  u.id         AS sender_id,
+	  u.name       AS sender_username,
+	  u.photo      AS sender_photo,
+	
+	  m.reply_to,
+	  pm.content   AS reply_to_content,
+	  pu.name      AS reply_to_sender_username
+	
+	FROM messages m
+	JOIN users u ON m.sender = u.id
+	
+	LEFT JOIN messages pm ON m.reply_to = pm.id
+	LEFT JOIN users pu    ON pm.sender = pu.id
+	
+	WHERE m.conversation_id = ?
+	ORDER BY m.datetime ASC;
     `
 
 	rows, err := db.c.Query(query, conversationID)
@@ -297,15 +302,21 @@ func (db *appdbimpl) GetMessagesByConversationId(conversationID int) ([]MessageW
 	var messages []MessageWithSender
 	for rows.Next() {
 		var msg MessageWithSender
-		// Be sure MessageWithSender includes a `Status string` field
+
+		// We scan the joined columns
 		err := rows.Scan(
 			&msg.ID,
 			&msg.Datetime,
 			&msg.Content,
-			&msg.Status, // <-- SCAN THIS
+			&msg.Status,
 			&msg.SenderID,
 			&msg.SenderUsername,
 			&msg.SenderPhoto,
+
+			// new columns for the reply
+			&msg.ReplyTo,
+			&msg.ReplyToContent,
+			&msg.ReplyToSenderUsername,
 		)
 		if err != nil {
 			return nil, err
@@ -528,12 +539,44 @@ func (db *appdbimpl) DeleteComment(commentID int) error {
 	return err
 }
 
-func (db *appdbimpl) SendMessageWithType(conversationID int, senderID string, content string, contentType string) error {
+// SendMessageWithType is extended to accept an optional replyTo parameter
+func (db *appdbimpl) SendMessageWithType(
+	conversationID int,
+	senderID string,
+	content string,
+	contentType string,
+	replyTo *int,
+) error {
+	// We'll include reply_to in the INSERT
 	query := `
-        INSERT INTO messages (conversation_id, sender, content, content_type, datetime, status)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, 'sent');
+        INSERT INTO messages (
+            conversation_id,
+            sender,
+            content,
+            content_type,
+            datetime,
+            status,
+            reply_to
+        )
+        VALUES (
+            ?,
+            ?,
+            ?,
+            ?,
+            CURRENT_TIMESTAMP,
+            'sent',
+            ?
+        );
     `
-	_, err := db.c.Exec(query, conversationID, senderID, content, contentType)
+	// If replyTo is nil, pass NULL; otherwise pass the integer value
+	var replyToParam interface{}
+	if replyTo == nil {
+		replyToParam = nil
+	} else {
+		replyToParam = *replyTo
+	}
+
+	_, err := db.c.Exec(query, conversationID, senderID, content, contentType, replyToParam)
 	return err
 }
 

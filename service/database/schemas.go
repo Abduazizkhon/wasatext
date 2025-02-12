@@ -29,12 +29,13 @@ type Convmember struct {
 }
 
 type Message struct {
-	ID             int       `json:"id"`
-	Datetime       time.Time `json:"datetime"`
-	Content        string    `json:"content"`
-	Sender         int       `json:"sender"`
-	ConversationID int       `json:"conversation_id"`
-	Status         string    `json:"status"`
+	ID             int           `json:"id"`
+	Datetime       time.Time     `json:"datetime"`
+	Content        string        `json:"content"`
+	Sender         int           `json:"sender"`
+	ConversationID int           `json:"conversation_id"`
+	Status         string        `json:"status"`
+	ReplyTo        sql.NullInt64 `json:"reply_to"`
 }
 
 type ConversationInfo struct {
@@ -56,6 +57,12 @@ type MessageWithSender struct {
 	SenderID       string         `json:"sender_id"`
 	SenderUsername string         `json:"sender_username"`
 	SenderPhoto    sql.NullString `json:"sender_photo"` // Use sql.NullString for nullable fields
+	// The ID of the message this one is replying to (if any).
+	ReplyTo sql.NullInt64 `json:"reply_to,omitempty"`
+
+	// Optionally, show snippet from original message (if reply_to is valid).
+	ReplyToContent        sql.NullString `json:"reply_to_content,omitempty"`
+	ReplyToSenderUsername sql.NullString `json:"reply_to_sender,omitempty"`
 }
 
 type MessageComment struct {

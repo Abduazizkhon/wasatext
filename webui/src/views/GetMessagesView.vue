@@ -102,6 +102,7 @@
       <ul v-else>
         <li v-for="message in messages" :key="message.id" class="message-item">
           <div class="message-info">
+            <!-- Sender Photo -->
             <img
               v-if="message.sender_photo && message.sender_photo.String"
               :src="getImageUrl(message.sender_photo.String)"
@@ -147,6 +148,20 @@
                 </button>
               </div>
 
+              <!-- REPLY BUTTON -->
+              <button class="reply-button" @click="initiateReply(message)">
+                Reply
+              </button>
+
+              <!-- Display reply snippet only if valid reply info exists -->
+              <div v-if="hasReply(message)">
+                <blockquote class="reply-snippet">
+                  <strong>Replying to: {{ getReplySender(message.reply_to_sender) }}</strong>
+                  <br />
+                  "{{ replySnippet(message.reply_to_content) }}"
+                </blockquote>
+              </div>
+
               <!-- Message content (text, image, or GIF) -->
               <div v-if="isImage(message.content)">
                 <img
@@ -185,7 +200,7 @@
                   <p class="comment-text">{{ c.content }}</p>
                 </div>
 
-                <!-- Add New Comment Form (now only a ❤️ react button) -->
+                <!-- Add New Comment Form (only a ❤️ react button) -->
                 <div class="add-comment-form">
                   <button @click="addEmojiComment(message)">❤️ React</button>
                 </div>
@@ -194,6 +209,15 @@
           </div>
         </li>
       </ul>
+    </div>
+
+    <!-- REPLYING BAR (shown if we are replying to some message) -->
+    <div v-if="replyToMessage" class="replying-bar">
+      <p>
+        Replying to: <strong>{{ replyToMessage.sender_username }}</strong><br />
+        <em>{{ replySnippet(replyToMessage.content) }}</em>
+        <button class="cancel-reply" @click="cancelReply">✕</button>
+      </p>
     </div>
 
     <!-- Message Input Bar -->
@@ -243,6 +267,8 @@ export default {
       newGroupName: '',
       showSetPhotoForm: false,
       newGroupPhotoFile: null,
+      // REPLY LOGIC
+      replyToMessage: null
     };
   },
   async created() {
@@ -280,19 +306,40 @@ export default {
           ? response.data.messages
           : [];
 
-        // Merge with local properties (comments, forward panel, etc.)
-        this.messages = fetchedMessages.map((msg) => ({
-          ...msg,
-          comments: [],
-          // We no longer track "newComment" here because we only post emojis
-          newComment: '',
-          showComments: false,
-          showForwardPanel: false,
-          forwardTarget: '',
-          // If the backend sets msg.status = "forwarded", use it; otherwise empty
-          status: msg.status || ''
-        }));
+        // Create a map of existing messages by ID for quick lookup
+        const existingMessagesMap = new Map(this.messages.map(msg => [msg.id, msg]));
 
+        // Merge fetched messages with existing messages
+        const mergedMessages = fetchedMessages.map(fetchedMsg => {
+          const existingMsg = existingMessagesMap.get(fetchedMsg.id);
+          if (existingMsg) {
+            // Preserve dynamic properties from the existing message
+            return {
+              ...fetchedMsg,
+              showComments: existingMsg.showComments,
+              showForwardPanel: existingMsg.showForwardPanel,
+              forwardTarget: existingMsg.forwardTarget,
+              status: existingMsg.status,
+              reply_to: existingMsg.reply_to,
+              reply_to_content: existingMsg.reply_to_content,
+              reply_to_sender: existingMsg.reply_to_sender,
+              comments: existingMsg.comments,
+            };
+          } else {
+            // If it's a new message, initialize dynamic properties
+            return {
+              ...fetchedMsg,
+              comments: [],
+              newComment: '',
+              showComments: false,
+              showForwardPanel: false,
+              forwardTarget: '',
+              status: fetchedMsg.status || ''
+            };
+          }
+        });
+
+        this.messages = mergedMessages;
         this.isGroup = response.data.conversation.is_group;
       } catch (error) {
         console.error("Error fetching conversation:", error);
@@ -324,7 +371,52 @@ export default {
       this.isInteracting = this.messageText.trim() || this.selectedFile ? true : false;
     },
 
-    // Send a brand-new message to this conversation
+    // Initiate a reply
+    initiateReply(message) {
+      this.replyToMessage = message;
+      this.isInteracting = true;
+    },
+    // Cancel the current reply
+    cancelReply() {
+      this.replyToMessage = null;
+      this.isInteracting = false;
+    },
+    // Returns a short snippet of the given text
+    snippetOf(text) {
+      if (!text) return '';
+      return text.length > 40 ? text.substring(0, 40) + '…' : text;
+    },
+    // Helper: if value is an object with a String property, return that; otherwise return value.
+    getPlainValue(val) {
+      if (val && typeof val === 'object' && 'String' in val) {
+        return val.String;
+      }
+      return val;
+    },
+    // Returns true if the message has a valid reply sender or content.
+    hasReply(message) {
+      const sender = this.getPlainValue(message.reply_to_sender);
+      const content = this.getPlainValue(message.reply_to_content);
+      return message.reply_to && (sender || content);
+    },
+    // Return the plain reply sender.
+    getReplySender(val) {
+      return this.getPlainValue(val);
+    },
+    // Helper to return the display for a reply's content.
+    // If the content looks like a gif or image, return "gif" or "photo" respectively.
+    replySnippet(content) {
+      const plain = this.getPlainValue(content);
+      if (!plain) return '';
+      if (this.isGif(plain)) {
+        return "gif";
+      } else if (this.isImage(plain)) {
+        return "photo";
+      }
+      return this.snippetOf(plain);
+    },
+
+    // Send a new message (with or without reply)
     async sendMessage() {
       const token = localStorage.getItem("authToken");
       const conversationID = this.$route.params.c_id;
@@ -336,11 +428,14 @@ export default {
         let formData = new FormData();
         formData.append("content", this.messageText);
         formData.append("content_type", "text");
+        // If replying, add reply_to
+        if (this.replyToMessage) {
+          formData.append("reply_to", this.replyToMessage.id.toString());
+        }
         if (this.selectedFile) {
           formData.append("file", this.selectedFile);
           formData.append("content_type", "photo");
         }
-
         const response = await axios.post(
           `/conversations/${conversationID}/messages`,
           formData,
@@ -351,31 +446,34 @@ export default {
             }
           }
         );
-
         const baseURL = axios.defaults.baseURL;
-        // Insert the newly sent message locally so user sees it right away
+        // Insert the newly sent message locally
         const newMessage = {
           id: response.data.message_id || Date.now(),
           content: response.data.content,
           sender_username: response.data.sender_username,
           sender_photo: response.data.sender_photo
-            ? response.data.sender_photo.startsWith(baseURL)
-              ? response.data.sender_photo
-              : baseURL + response.data.sender_photo
+            ? (response.data.sender_photo.startsWith(baseURL)
+                ? response.data.sender_photo
+                : baseURL + response.data.sender_photo)
             : '/default-profile.png',
           datetime: new Date().toISOString(),
           sender_id: this.currentUser,
-          status: '', // a normal message is not "forwarded"
+          status: '',
           comments: [],
           newComment: '',
           showComments: false,
           showForwardPanel: false,
-          forwardTarget: ''
+          forwardTarget: '',
+          // Store reply information as plain values
+          reply_to: this.replyToMessage ? this.replyToMessage.id : null,
+          reply_to_sender: this.replyToMessage ? this.replyToMessage.sender_username : '',
+          reply_to_content: this.replyToMessage ? this.replyToMessage.content : ''
         };
-
         this.messages.push(newMessage);
         this.messageText = '';
         this.selectedFile = null;
+        this.replyToMessage = null; // Clear reply
         this.isInteracting = false;
         this.$nextTick(() => {
           this.scrollToBottom();
@@ -393,7 +491,7 @@ export default {
         : '/default-profile.png';
     },
 
-    // Delete a message from this conversation
+    // Delete a message
     async deleteMessage(messageId) {
       const conversationID = this.$route.params.c_id;
       const token = localStorage.getItem("authToken");
@@ -401,14 +499,13 @@ export default {
         await axios.delete(`/conversations/${conversationID}/messages/${messageId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        // Remove it locally
         this.messages = this.messages.filter((message) => message.id !== messageId);
       } catch (error) {
         console.error("Error deleting message:", error);
       }
     },
 
-    // Delete an individual comment
+    // Delete a comment
     async deleteComment(message, comment) {
       const token = localStorage.getItem("authToken");
       const conversationID = this.$route.params.c_id;
@@ -429,7 +526,7 @@ export default {
       }
     },
 
-    // Show/hide comment section
+    // Toggle comment section
     async toggleComments(message) {
       message.showComments = !message.showComments;
       if (message.showComments) {
@@ -453,7 +550,7 @@ export default {
       }
     },
 
-    // Only allow a single heart emoji
+    // Add emoji comment
     async addEmojiComment(message) {
       const token = localStorage.getItem("authToken");
       const conversationID = this.$route.params.c_id;
@@ -462,16 +559,11 @@ export default {
         return;
       }
       try {
-        // Force a single heart emoji with content_type = "emoji"
         await axios.post(
           `/conversations/${conversationID}/messages/${message.id}/comments`,
-          {
-            content_type: "emoji",
-            content: "❤️"
-          },
+          { content_type: "emoji", content: "❤️" },
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        // Reload comments to show the new heart reaction
         const response = await axios.get(`/messages/${message.id}/comments`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -482,7 +574,7 @@ export default {
       }
     },
 
-    // Toggle forward UI panel
+    // Toggle forward panel
     toggleForwardPanel(message) {
       message.showForwardPanel = !message.showForwardPanel;
       if (message.showForwardPanel) {
@@ -494,7 +586,7 @@ export default {
       }
     },
 
-    // Forward a message to another user or conversation
+    // Forward a message
     async forwardMessageHandler(message) {
       const token = localStorage.getItem("authToken");
       const conversationID = this.$route.params.c_id;
@@ -507,7 +599,6 @@ export default {
         return;
       }
       let targetConversationID = "";
-      // If user typed a numeric ID, assume that's the conversation ID; otherwise "new" with username
       if (!isNaN(message.forwardTarget)) {
         targetConversationID = message.forwardTarget;
       } else {
@@ -518,29 +609,18 @@ export default {
         if (targetConversationID === "new") {
           payload = { target_username: message.forwardTarget.trim() };
         }
-
         await axios.post(
           `/conversations/${conversationID}/messages/${message.id}/forward/${targetConversationID}`,
           payload,
           { headers: { Authorization: `Bearer ${token}` } }
         );
-
-        // Mark the message (in *this* conversation) as forwarded
         message.status = "forwarded";
         message.showForwardPanel = false;
         message.forwardTarget = "";
-
         alert("Message forwarded successfully!");
-
-        // If there are no more open forward panels, re-enable auto-refresh
         if (!this.messages.some((msg) => msg.showForwardPanel)) {
           this.isInteracting = false;
         }
-
-        // NOTE: If you want the forwarded message to appear
-        // with "Forwarded" in the *new* conversation,
-        // the server must set `status='forwarded'` in the new row,
-        // so that conversation sees "status":"forwarded".
       } catch (error) {
         console.error("Error forwarding message:", error);
         alert("Error forwarding message. Check console for details.");
@@ -583,7 +663,6 @@ export default {
       this.usernameToAdd = '';
       this.isInteracting = false;
     },
-
     // Add a user to the group
     async addUserToGroup() {
       const token = localStorage.getItem("authToken");
@@ -633,9 +712,7 @@ export default {
         return;
       }
       try {
-        await axios.put(`/groups/${conversationID}/name`, {
-          new_name: this.newGroupName.trim()
-        }, {
+        await axios.put(`/groups/${conversationID}/name`, { new_name: this.newGroupName.trim() }, {
           headers: { Authorization: `Bearer ${token}` }
         });
         alert(`Group name updated to: "${this.newGroupName.trim()}"`);
@@ -1053,5 +1130,39 @@ export default {
   color: #555;
   margin-left: 8px;
   font-style: italic;
+}
+
+/* REPLY button */
+.reply-button {
+  background-color: #4a148c;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin-top: 6px;
+  cursor: pointer;
+}
+.reply-button:hover {
+  background-color: #6a1b9a;
+}
+
+/* The bar showing "Replying to..." */
+.replying-bar {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeeba;
+  padding: 8px;
+  margin: 0 10px 10px;
+  border-radius: 4px;
+  text-align: center;
+}
+.replying-bar .cancel-reply {
+  background: none;
+  border: none;
+  color: red;
+  font-weight: bold;
+  margin-left: 12px;
+  cursor: pointer;
+  font-size: 14px;
 }
 </style>
